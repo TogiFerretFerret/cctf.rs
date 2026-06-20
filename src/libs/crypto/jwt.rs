@@ -86,6 +86,10 @@ mod tests {
             JwtError::InvalidFormat.localize("ja"),
             "トークンの形式が無効です"
         );
+        assert_eq!(
+            JwtError::InvalidFormat.localize("lv"),
+            "Nederīgs marķiera formāts"
+        );
 
         let json_err = serde_json::from_str::<serde_json::Value>("{").unwrap_err();
         let jwt_json_err = JwtError::InvalidJson(json_err);
@@ -104,6 +108,10 @@ mod tests {
         assert_eq!(
             clean_bidi(jwt_json_err.localize("ja")),
             "JSONペイロードが無効です: EOF while parsing an object at line 1 column 1"
+        );
+        assert_eq!(
+            clean_bidi(jwt_json_err.localize("lv")),
+            "Nederīga JSON derīgā slodze: EOF while parsing an object at line 1 column 1"
         );
     }
 }
