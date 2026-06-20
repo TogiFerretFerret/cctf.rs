@@ -59,3 +59,52 @@ impl fmt::Display for JwtError {
         write!(f, "{}", self.localize("en-US"))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn clean_bidi(s: String) -> String {
+        s.replace('\u{2068}', "").replace('\u{2069}', "")
+    }
+
+    #[test]
+    fn test_localization() {
+        assert_eq!(
+            JwtError::InvalidFormat.localize("ky"),
+            "Токендин форматы жараксыз"
+        );
+        assert_eq!(
+            JwtError::InvalidFormat.localize("ru"),
+            "Неверный формат токена"
+        );
+        assert_eq!(
+            JwtError::InvalidFormat.localize("vi"),
+            "Định dạng token không hợp lệ"
+        );
+        assert_eq!(
+            JwtError::InvalidFormat.localize("ja"),
+            "トークンの形式が無効です"
+        );
+
+        let json_err = serde_json::from_str::<serde_json::Value>("{").unwrap_err();
+        let jwt_json_err = JwtError::InvalidJson(json_err);
+        assert_eq!(
+            clean_bidi(jwt_json_err.localize("ky")),
+            "Жараксыз JSON берилиштери: EOF while parsing an object at line 1 column 1"
+        );
+        assert_eq!(
+            clean_bidi(jwt_json_err.localize("ru")),
+            "Неверная полезная нагрузка JSON: EOF while parsing an object at line 1 column 1"
+        );
+        assert_eq!(
+            clean_bidi(jwt_json_err.localize("vi")),
+            "Payload JSON không hợp lệ: EOF while parsing an object at line 1 column 1"
+        );
+        assert_eq!(
+            clean_bidi(jwt_json_err.localize("ja")),
+            "JSONペイロードが無効です: EOF while parsing an object at line 1 column 1"
+        );
+    }
+}
+
