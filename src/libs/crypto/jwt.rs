@@ -26,3 +26,4 @@ pub enum JwtError {
     #[error("Your token refused to be exterminated: {0}")]
     Base64DecodeError(#[from] base64::DecodeError)
 }
+
