@@ -8,6 +8,12 @@ use unic_langid::langid;
 
 type HmacSha256 = Hmac<Sha256>;
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Header {
+    pub alg: String,
+    pub typ: Option<String>,
+}
+
 static_loader! {
     static LOCALES = {
         locales: "./locales",
@@ -21,6 +27,12 @@ fn jwt64_encode(payload: &[u8]) -> String {
 
 fn jwt64_decode(payload: &[u8]) -> Result<Vec<u8>, JwtError> {
     URL_SAFE_NO_PAD.decode(payload).map_err(JwtError::Base64DecodeError)
+}
+
+fn sign_hs256(message: &[i8], secret: &[u8]) -> Result<Vec<u8>, JwtError> {
+    // only fails if the key format/size is completely invalid for the hash
+    let mut mac = HmacSha256::new_from_slice(secret)
+        .map_err(
 }
 
 #[derive(Debug)]
