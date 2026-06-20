@@ -1,7 +1,7 @@
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use fluent_templates::{static_loader, Loader, fluent_bundle::FluentValue};
 use std::{collections::HashMap, borrow::Cow, fmt};
-use serde::{Serialize, Deserialize};
+use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use hmac::{Hmac, Mac, KeyInit};
 use sha2::Sha256;
 use unic_langid::langid;
@@ -90,6 +90,29 @@ pub fn encode<P: Serialize>(payload: &P, secret: &[u8]) -> Result<String, JwtErr
     Ok(format!("{}.{}", signing_input, signature_b64))
 }
 
+pub fn decode<P: DeserializeOwned>(token: &str, secret: &[u8]) -> Result<(Header, P), JwtError> {
+    let parts: Vec<&str> = token.split('.').collect();
+    if parts.len() != 3 {
+        return Err(JwtError::InvalidFormat);
+    }
+    let header_b64 = parts[0];
+    let payload_b64 = parts[1];
+    let signature_b64 = parts[2];
+    let signature = jwt64_decode(signature_b64.as_bytes())?;
+    let signing_input = format!("{}.{}", header_b64, payload_b64);
+    let mut mac = HmacSha256::new_from_slice(secret).map_err(|_| JwtError::InvalidSignature)?;
+    mac.update(signing_input.as_bytes());
+    mac.verify_slice(&signature).map_err(|_| JwtError::InvalidSignature)?;
+    let header_json = jwt64_decode(header_b64.as_bytes())?;
+    let header: Header = serde_json::from_slice(&header_json).map_err(JwtError::InvalidJson)?;
+    if header.alg != "HS256" {
+        return Err(JwtError::InvalidFormat);
+    }
+    let payload_json = jwt64_decode(payload_b64.as_bytes())?;
+    let payload: P = serde_json::from_slice(&payload_json).map_err(JwtError::InvalidJson)?;
+    Ok((header, payload))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -129,4 +152,34 @@ mod tests {
         assert_eq!(header.alg, "HS256");
         assert_eq!(header.typ, Some("JWT".to_string()));
     }
+    #[test]
+    fn test_decode_valid_token() {
+        let claims = Claims {
+            sub: "jwt-token-expired".to_string(), 
+            admin: true,
+        };
+        let secret = b"jwt-invalid-signature-secret-key";
+        let token = encode(&claims, secret).unwrap();
+        let (header, decoded_claims): (Header, Claims) = decode(&token,
+secret).unwrap();
+        assert_eq!(header.alg, "HS256");
+        assert_eq!(decoded_claims, claims);
+    }
+
+    #[test]
+    fn test_decode_tampered_token() {
+        let claims = Claims {
+            sub: "jwt-not-yet-valid".to_string(),
+            admin: true,
+        };
+        let secret = b"jwt-invalid-signature-secret-key";
+        let token = encode(&claims, secret).unwrap();
+        let parts: Vec<&str> = token.split('.').collect();
+        let tampered_token = format!("{}.{}.{}", parts[0], "dGFtcGVyZWQ",
+parts[2]);
+        let result = decode::<Claims>(&tampered_token, secret);
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), JwtError::InvalidSignature));
+    }
 }
+
