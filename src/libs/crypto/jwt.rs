@@ -1,5 +1,17 @@
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
-use thiserror::Error;
+use fluent_templates::{static_loader, Loader};
+use unic_langid::langid;
+use std::collections::HashMap;
+use std::borrow::Cow;
+use fluent_templates::fluent_bundle::FluentValue;
+use std::fmt;
+
+static_loader! {
+    static LOCALES = {
+        locales: "./locales",
+        fallback_language: "en-US",
+    };
+}
 
 fn jwt64_encode(payload: &[u8]) -> String {
     URL_SAFE_NO_PAD.encode(payload)
@@ -11,19 +23,39 @@ fn jwt64_decode(payload: &[u8]) -> Result<Vec<u8>, JwtError> {
 
 
 
-#[derive(Debug, Error)]
+#[derive(Debug)]
 pub enum JwtError {
-    #[error("Your token was assembled by a Slitheen")]
     InvalidFormat,
-    #[error("Your token failed to use its Psychic Paper")]
     InvalidSignature,
-    #[error("The token is dead")]
     Expired,
-    #[error("Your token has temporarily played the role of TARDIS")]
     NotYetValid,
-    #[error("Your token is a human in a Dalek suit: {0}")]
-    InvalidJson(#[from] serde_json::Error),
-    #[error("Your token refused to be exterminated: {0}")]
-    Base64DecodeError(#[from] base64::DecodeError)
+    InvalidJson(serde_json::Error),
+    Base64DecodeError(base64::DecodeError)
 }
 
+impl JwtError {
+    pub fn localize(&self, lang: &str) -> String {
+        let lang_id = lang.parse().unwrap_or_else(|_| langid!("en-US"));
+        match self {
+            JwtError::InvalidFormat => LOCALES.lookup(&lang_id, "jwt-invalid-format"),
+            JwtError::InvalidSignature => LOCALES.lookup(&lang_id, "jwt-invalid-signature"),
+            JwtError::Expired => LOCALES.lookup(&lang_id, "jwt-token-expired"),
+            JwtError::NotYetValid => LOCALES.lookup(&lang_id, "jwt-not-yet-valid"),
+            JwtError::InvalidJson(err) => {
+                let args = HashMap::from([(Cow::Borrowed("reason"),FluentValue::from(err.to_string())),]);
+                LOCALES.lookup_with_args(&lang_id, "jwt-invalid-json", &args)
+            },
+            JwtError::Base64DecodeError(err) => {
+                let args = HashMap::from([(Cow::Borrowed("reason"),FluentValue::from(err.to_string())),]);
+                LOCALES.lookup_with_args(&lang_id, "jwt-base64-error", &args)
+            }
+        }
+    }
+}
+
+// display fallback
+impl fmt::Display for JwtError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.localize("en-US"))
+    }
+}
