@@ -75,7 +75,7 @@ impl fmt::Display for JwtError {
 }
 
 
-pub fn encode<P: Serialize>(header: &Header, payload: &P, secret: &[u8]) -> Result<String, JwtError> {
+pub fn encode<P: Serialize>(payload: &P, secret: &[u8]) -> Result<String, JwtError> {
     let header = Header {
         alg: "HS256".to_string(),
         typ: Some("JWT".to_string()),
@@ -88,4 +88,45 @@ pub fn encode<P: Serialize>(header: &Header, payload: &P, secret: &[u8]) -> Resu
     let signature = sign_hs256(signing_input.as_bytes(), secret)?;
     let signature_b64 = jwt64_encode(&signature);
     Ok(format!("{}.{}", signing_input, signature_b64))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[derive(Debug, Serialize, Deserialize, PartialEq)]
+    struct Claims {
+        sub: String,
+        admin: bool,
+    }
+    #[test]
+    fn test_base64_helpers() {
+        let input = b"jwt-invalid-format";
+        let encoded = jwt64_encode(input);
+        assert_eq!(encoded, "and0LWludmFsaWQtZm9ybWF0");
+        let decoded = jwt64_decode(encoded.as_bytes()).unwrap();
+        assert_eq!(decoded, input);
+    }
+    #[test]
+    fn test_sign_hs256() {
+        let message = b"jwt-token-expired";
+        let secret = b"jwt-invalid-signature-secret-key";
+        let signature = sign_hs256(message, secret);
+        assert!(signature.is_ok());
+        assert_eq!(signature.unwrap().len(), 32);
+    }
+    #[test]
+    fn test_encode_token() {
+        let claims = Claims {
+            sub: "jwt-not-yet-valid".to_string(),
+            admin: true,
+        };
+        let secret = b"jwt-invalid-signature-secret-key"; 
+        let token = encode(&claims, secret).unwrap();
+        let parts: Vec<&str> = token.split('.').collect();
+        assert_eq!(parts.len(), 3);
+        let header_bytes = jwt64_decode(parts[0].as_bytes()).unwrap();
+        let header: Header = serde_json::from_slice(&header_bytes).unwrap();
+        assert_eq!(header.alg, "HS256");
+        assert_eq!(header.typ, Some("JWT".to_string()));
+    }
 }
