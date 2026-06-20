@@ -2,7 +2,7 @@ use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use fluent_templates::{static_loader, Loader, fluent_bundle::FluentValue};
 use std::{collections::HashMap, borrow::Cow, fmt};
 use serde::{Serialize, Deserialize};
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, Mac, KeyInit};
 use sha2::Sha256;
 use unic_langid::langid;
 
@@ -29,10 +29,12 @@ fn jwt64_decode(payload: &[u8]) -> Result<Vec<u8>, JwtError> {
     URL_SAFE_NO_PAD.decode(payload).map_err(JwtError::Base64DecodeError)
 }
 
-fn sign_hs256(message: &[i8], secret: &[u8]) -> Result<Vec<u8>, JwtError> {
+fn sign_hs256(message: &[u8], secret: &[u8]) -> Result<Vec<u8>, JwtError> {
     // only fails if the key format/size is completely invalid for the hash
     let mut mac = HmacSha256::new_from_slice(secret)
-        .map_err(
+        .map_err(|_| JwtError::InvalidSignature)?;
+    mac.update(message);
+    Ok(mac.finalize().into_bytes().to_vec())
 }
 
 #[derive(Debug)]
