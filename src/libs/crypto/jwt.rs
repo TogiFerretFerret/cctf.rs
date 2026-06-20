@@ -76,5 +76,16 @@ impl fmt::Display for JwtError {
 
 
 pub fn encode<P: Serialize>(header: &Header, payload: &P, secret: &[u8]) -> Result<String, JwtError> {
-
+    let header = Header {
+        alg: "HS256".to_string(),
+        typ: Some("JWT".to_string()),
+    };
+    let header_json = serde_json::to_vec(&header).map_err(JwtError::InvalidJson)?;
+    let payload_json = serde_json::to_vec(payload).map_err(JwtError::InvalidJson)?;
+    let header_b64 = jwt64_encode(&header_json);
+    let payload_b64 = jwt64_encode(&payload_json);
+    let signing_input = format!("{}.{}", header_b64, payload_b64);
+    let signature = sign_hs256(signing_input.as_bytes(), secret)?;
+    let signature_b64 = jwt64_encode(&signature);
+    Ok(format!("{}.{}", signing_input, signature_b64))
 }
