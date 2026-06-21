@@ -27,8 +27,8 @@ impl RepoError {
     pub fn localize(&self, lang: &str) -> String {
         let lang_id = lang.parse().unwrap_or_else(|_| langid!("en-US"));
         match self {
-            RepoError::Connection(_) => LOCALES.lookup(&lang_id, "server-db-connection-failed")
-            RepoError::NotFound => LOCALES.lookup(&lang_id, "ctf-challenge-not-found")
+            RepoError::Connection(_) => LOCALES.lookup(&lang_id, "server-db-connection-failed"),
+            RepoError::NotFound => LOCALES.lookup(&lang_id, "ctf-challenge-not-found"),
             RepoError::Conflict(key) => {
                 LOCALES.lookup(&lang_id, key)
             }
