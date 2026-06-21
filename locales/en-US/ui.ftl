@@ -27,4 +27,3 @@ form-submit = Submit
 form-cancel = Cancel
 form-save = Save Changes
 form-invite-code = Invite Code
-
