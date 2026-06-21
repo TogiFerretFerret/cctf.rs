@@ -1,7 +1,7 @@
 server-healthy = System is healthy and fully operational.
 server-maintenance = System is currently undergoing scheduled maintenance. Please check back later.
 server-db-connection-failed = Database connection could not be established. Please contact the administrator.
-server-boot-success = CTFer server boot complete. Listening on {$address}.
+server-boot-success = cctf.rs server boot complete. Listening on {$address}.
 
 instancer-launching = Spawning challenge container instance...
 instancer-ready = Your challenge instance is ready! Connect to {$host} on port {$port}.
