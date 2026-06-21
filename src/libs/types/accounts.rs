@@ -56,5 +56,5 @@ pub struct CtfTimeTeamRating {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CtfTimeTeamMember {
-    
+
 }
