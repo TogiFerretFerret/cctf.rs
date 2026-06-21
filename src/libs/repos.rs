@@ -6,8 +6,6 @@ use fluent_templates::{static_loader, Loader, fluent_bundle::FluentValue};
 use std::collections::HashMap;
 use std::borrow::Cow;
 use std::fmt;
-use std::sync::Arc;
-use tokio::sync::RwLock;
 use unic_langid::langid;
 
 static_loader! {
