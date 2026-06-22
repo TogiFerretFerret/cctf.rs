@@ -1,7 +1,7 @@
 use crate::libs::repos::{AccountRepo, TeamRepo, ChallengeRepo, SolveRepo, RepoError};
 use crate::libs::types::accounts::{Account, AccountId, AccountName, AccountEmail, AccountRole, CtfTimeUserProfile};
 use crate::libs::types::teams::{Team, TeamId, TeamName};
-use crate::libs::types::challenges::{ScoringMode};
+use crate::libs::types::challenges::{Challenge, ScoringMode};
 use crate::libs::types::solves::{Solve,SolveId};
 use crate::libs::types::flags::FlagValidator;
 use crate::libs::crypto::jwt;
@@ -419,5 +419,44 @@ where
             entry.rank = (i + 1) as u32;
         }
         Ok(entries)
+    }
+    pub async fn export_ctftime(&self) -> Result<CtfTimeScoreboardExport, ServiceError> {
+        let standings = self.get_scoreboard().await?;
+        let solves = self.solve_repo.find_all().await?;
+        let challenges = self.challenge_repo.find_all().await?;
+        let challenge_map: HashMap<String, &Challenge> = challenges
+            .iter()
+            .map(|c| (c.id.clone(), c))
+            .collect();
+        let tasks: Vec<String> = challenges
+            .iter()
+            .map(|c| c.title.0.clone())
+            .collect();
+        let mut ctftime_standings = Vec::new();
+        for entry in standings {
+            let mut task_stats = HashMap::new();
+            let team_solves: Vec<&Solve> = solves
+                .iter()
+                .filter(|s| s.team_id.as_ref() == Some(&entry.team_id))
+                .collect();
+            for solve in team_solves {
+                if let Some(challenge) = challenge_map.get(&solve.challenge_id) {
+                    task_stats.insert(
+                        challenge.title.0.clone(),
+                        CtfTimeTaskStats {
+                            points: solve.points,
+                            time: solve.solved_at,
+                        },
+                    );
+                }
+            }
+            ctftime_standings.push(CtfTimeStandingsEntry {
+                pos: Some(entry.rank),
+                team: entry.team_name,
+                score: entry.points as f64,
+                task_stats,
+            });
+        }
+        Ok(CtfTimeScoreboardExport { tasks, standings: ctftime_standings })
     }
 }
