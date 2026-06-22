@@ -9,7 +9,7 @@ use std::fmt;
 use unic_langid::langid;
 
 static_loader! {
-    pub static LOCALES = {
+    static LOCALES = {
         locales: "./locales",
         fallback_language: "en-US",
     };
