@@ -381,6 +381,7 @@ where
                 .collect();
             let mut points = 0;
             let mut last_solve_time = None;
+            let mut solved_ids = Vec::new();
             for solve in team_solves {
                 if let Some(challenge) = challenge_map.get(&solve.challenge_id) {
                     let challenge_points = match challenge.points.mode {
@@ -391,6 +392,7 @@ where
                         ScoringMode::PointAttribution => solve.points
                     };
                     points+=challenge_points;
+                    solved_ids.push(challenge.id.clone());
                     last_solve_time = match last_solve_time {
                         None => Some(solve.solved_at),
                         Some(t) => Some(t.max(solve.solved_at)),
@@ -402,6 +404,7 @@ where
                 team_name: team.name.0,
                 points,
                 last_solve_time,
+                solves: solved_ids,
                 rank: 0, // assign after sort
             });
         }

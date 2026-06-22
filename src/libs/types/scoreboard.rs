@@ -6,7 +6,7 @@ use crate::libs::types::teams::TeamId;
 pub struct ScoreboardEntry {
     pub team_id: TeamId,
     pub team_name: String,
-    pub points: f64,
+    pub points: u32,
     pub last_solve_time: Option<i64>,
     pub solves: Vec<String>, // list of challenge ids
     pub rank: u32,
