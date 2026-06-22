@@ -269,18 +269,18 @@ where
 }
 
 pub struct SolveService<C, S>
-where 
+where
     C: ChallengeRepo,
-    S: SolveRepo,
+    S: SubmissionRepo,
 {
     pub challenge_repo: C,
-    pub solve_repo: S,
+    pub submission_repo: S,
 }
 
 impl<C, S> SolveService<C, S>
-where 
+where
     C: ChallengeRepo,
-    S: SolveRepo,
+    S: SubmissionRepo,
 {
     pub async fn submit_flag(
         &self,
@@ -288,172 +288,222 @@ where
         team_id: Option<TeamId>,
         account_id: AccountId,
         submitted_flag: &str,
-    ) -> Result<Solve, ServiceError> {
+    ) -> Result<Submission, ServiceError> {
         let challenge = self.challenge_repo.find_by_id(challenge_id).await?
             .ok_or_else(|| ServiceError::InvalidRequest("ctf-challenge-not-found".to_string()))?;
         if let Some(ref t_id) = team_id {
-            let solves = self.solve_repo.find_by_team(t_id).await?;
-            if solves.iter().any(|s| s.challenge_id == challenge_id) {
-                return Err(ServiceError::InvalidRequest("ctf-challenge-already-solved".to_string()));
+            let subs = self.submission_repo.find_by_team(t_id).await?;
+            if subs.iter().any(|s| s.challenge_id == challenge_id && s.is_correct) {
+                return Err(ServiceError::InvalidRequest("ctf-already-solved".to_string()));
             }
         }
-        let is_valid = match &challenge.flag {
+        let is_correct = match &challenge.flag {
             FlagValidator::Static(flag) => flag.trim() == submitted_flag.trim(),
             FlagValidator::Regex(pattern) => {
                 let re = regex::Regex::new(pattern)
                     .map_err(|_| ServiceError::InvalidRequest("admin-invalid-regex".to_string()))?;
                 re.is_match(submitted_flag.trim())
             }
-            FlagValidator::Script(_script) => {
-                // TODO: implement script-based flag validation
-                false
-            }
-            FlagValidator::Instanced => {
-                // TODO: implement instanced flag validation; validated against container/passed
-                // into
-                false
-            }
+            FlagValidator::Script(_) => false,
+            FlagValidator::Instanced => false,
         };
-        if !is_valid {
-            return Err(ServiceError::InvalidRequest("ctf-incorrect-flag".to_string()));
-        }
-        let total_solves = self.solve_repo.find_all().await?
+
+        let total_solves = self.submission_repo.find_all().await?
             .iter()
-            .filter(|s| s.challenge_id == challenge_id)
+            .filter(|s| s.challenge_id == challenge_id && s.is_correct)
             .count() as u32;
-        let points_awarded =  match challenge.points.mode {
-            ScoringMode::PointValue => {
-                // TODO: Parse/evaluate eq with x=total_solves
-                challenge.points.equation.parse::<u32>().unwrap_or(0)
+
+        let points_awarded = if is_correct {
+            match challenge.points.mode {
+                ScoringMode::PointValue => {
+                    challenge.points.equation.parse::<u32>().unwrap_or(100)
+                }
+                ScoringMode::PointAttribution => {
+                    challenge.points.equation.parse::<u32>().unwrap_or(100)
+                }
             }
-            ScoringMode::PointAttribution => {
-                // TODO: Parse/evaluate eq with x=total_solves+1
-                challenge.points.equation.parse::<u32>().unwrap_or(0)
-            }
+        } else {
+            0
         };
-        let solve = Solve{
+
+        let submission = Submission {
             id: SubmissionId(uuid::Uuid::new_v4().to_string()),
             challenge_id: challenge_id.to_string(),
             team_id,
             account_id,
             points: points_awarded,
             provided_flag: submitted_flag.to_string(),
-            solved_at: chrono::Utc::now().timestamp(),
+            is_correct,
+            submitted_at: chrono::Utc::now().timestamp(),
         };
-        self.solve_repo.save(solve.clone()).await?;
-        Ok(solve)
+
+        self.submission_repo.save(submission.clone()).await?;
+
+        if !is_correct {
+            return Err(ServiceError::InvalidRequest("ctf-incorrect-flag".to_string()));
+        }
+
+        Ok(submission)
     }
 }
 
 pub struct ScoreboardService<T, C, S>
-where 
+where
     T: TeamRepo,
     C: ChallengeRepo,
-    S: SolveRepo,
+    S: SubmissionRepo,
 {
-    pub team_repo: T, 
+    pub team_repo: T,
     pub challenge_repo: C,
-    pub solve_repo: S,
+    pub submission_repo: S,
+    pub sort_by_accuracy: bool,
 }
 
 impl<T, C, S> ScoreboardService<T, C, S>
-where 
+where
     T: TeamRepo,
     C: ChallengeRepo,
-    S: SolveRepo,
+    S: SubmissionRepo,
 {
     pub async fn get_scoreboard(&self) -> Result<Vec<ScoreboardEntry>, ServiceError> {
         let teams = self.team_repo.find_all().await?;
-        let solves = self.solve_repo.find_all().await?;
+        let submissions = self.submission_repo.find_all().await?;
         let challenges = self.challenge_repo.find_all().await?;
+
         let challenge_map: HashMap<String, &Challenge> = challenges
             .iter()
             .map(|c| (c.id.clone(), c))
             .collect();
-        let mut solve_counts: HashMap<String, u32> = HashMap::new();
-        for solve in &solves {
-            *solve_counts.entry(solve.challenge_id.clone()).or_insert(0) += 1;
+
+        let mut solve_counts = HashMap::new();
+        for sub in &submissions {
+            if sub.is_correct {
+                *solve_counts.entry(sub.challenge_id.clone()).or_insert(0) += 1;
+            }
         }
+
         let mut entries = Vec::new();
+
         for team in teams {
-            let team_solves: Vec<&Solve> = solves
+            let team_subs: Vec<&Submission> = submissions
                 .iter()
-                .filter(|s| s.team_id.as_ref()==Some(&team.id))
+                .filter(|s| s.team_id.as_ref() == Some(&team.id))
                 .collect();
+
             let mut points = 0;
             let mut last_solve_time = None;
             let mut solved_ids = Vec::new();
-            for solve in team_solves {
-                if let Some(challenge) = challenge_map.get(&solve.challenge_id) {
-                    let challenge_points = match challenge.points.mode {
-                        ScoringMode::PointValue => {
-                            let count = solve_counts.get(&solve.challenge_id).cloned().unwrap_or(1);
-                            challenge.points.equation.parse::<u32>().unwrap_or(0)
-                        }
-                        ScoringMode::PointAttribution => solve.points
-                    };
-                    points+=challenge_points;
-                    solved_ids.push(challenge.id.clone());
-                    last_solve_time = match last_solve_time {
-                        None => Some(solve.solved_at),
-                        Some(t) => Some(t.max(solve.solved_at)),
-                    };
+
+            for sub in team_subs {
+                if sub.is_correct {
+                    if let Some(challenge) = challenge_map.get(&sub.challenge_id) {
+                        let challenge_points = match challenge.points.mode {
+                            ScoringMode::PointValue => {
+                                challenge.points.equation.parse::<u32>().unwrap_or(100)
+                            }
+                            ScoringMode::PointAttribution => {
+                                sub.points
+                            }
+                        };
+
+                        points += challenge_points;
+                        solved_ids.push(sub.challenge_id.clone());
+
+                        last_solve_time = match last_solve_time {
+                            None => Some(sub.submitted_at),
+                            Some(t) => Some(t.max(sub.submitted_at)),
+                        };
+                    }
                 }
             }
+
             entries.push(ScoreboardEntry {
                 team_id: team.id,
                 team_name: team.name.0,
                 points,
                 last_solve_time,
                 solves: solved_ids,
-                rank: 0, // assign after sort
+                rank: 0,
             });
         }
-        entries.sort_by(|a, b| {
-            b.points.cmp(&a.points).then_with(|| {
-                match (a.last_solve_time, b.last_solve_time) {
-                    (Some(t1), Some(t2)) => t1.cmp(&t2),
-                    (Some(_), None) => std::cmp::Ordering::Less,
-                    (None, Some(_)) => std::cmp::Ordering::Greater,
-                    (None, None) => std::cmp::Ordering::Equal,
+
+        if self.sort_by_accuracy {
+            let get_accuracy = |team_id: &TeamId| -> f64 {
+                let subs: Vec<&Submission> = submissions
+                    .iter()
+                    .filter(|s| s.team_id.as_ref() == Some(team_id))
+                    .collect();
+                if subs.is_empty() {
+                    1.0
+                } else {
+                    (subs.iter().filter(|s| s.is_correct).count() as f64) / (subs.len() as f64)
                 }
-            })
-        });
+            };
+
+            entries.sort_by(|a, b| {
+                b.points.cmp(&a.points).then_with(|| {
+                    let acc_a = get_accuracy(&a.team_id);
+                    let acc_b = get_accuracy(&b.team_id);
+                    acc_b.partial_cmp(&acc_a).unwrap_or(std::cmp::Ordering::Equal)
+                })
+            });
+        } else {
+            entries.sort_by(|a, b| {
+                b.points.cmp(&a.points).then_with(|| {
+                    match (a.last_solve_time, b.last_solve_time) {
+                        (Some(t1), Some(t2)) => t1.cmp(&t2),
+                        (Some(_), None) => std::cmp::Ordering::Less,
+                        (None, Some(_)) => std::cmp::Ordering::Greater,
+                        (None, None) => std::cmp::Ordering::Equal,
+                    }
+                })
+            });
+        }
+
         for (i, entry) in entries.iter_mut().enumerate() {
             entry.rank = (i + 1) as u32;
         }
+
         Ok(entries)
     }
+
     pub async fn export_ctftime(&self) -> Result<CtfTimeScoreboardExport, ServiceError> {
         let standings = self.get_scoreboard().await?;
-        let solves = self.solve_repo.find_all().await?;
+        let submissions = self.submission_repo.find_all().await?;
         let challenges = self.challenge_repo.find_all().await?;
+
         let challenge_map: HashMap<String, &Challenge> = challenges
             .iter()
             .map(|c| (c.id.clone(), c))
             .collect();
+
         let tasks: Vec<String> = challenges
             .iter()
             .map(|c| c.title.0.clone())
             .collect();
+
         let mut ctftime_standings = Vec::new();
+
         for entry in standings {
             let mut task_stats = HashMap::new();
-            let team_solves: Vec<&Solve> = solves
+
+            let team_solves: Vec<&Submission> = submissions
                 .iter()
-                .filter(|s| s.team_id.as_ref() == Some(&entry.team_id))
+                .filter(|s| s.team_id.as_ref() == Some(&entry.team_id) && s.is_correct)
                 .collect();
+
             for solve in team_solves {
                 if let Some(challenge) = challenge_map.get(&solve.challenge_id) {
                     task_stats.insert(
                         challenge.title.0.clone(),
                         CtfTimeTaskStats {
                             points: solve.points,
-                            time: solve.solved_at,
+                            time: solve.submitted_at,
                         },
                     );
                 }
             }
+
             ctftime_standings.push(CtfTimeStandingsEntry {
                 pos: Some(entry.rank),
                 team: entry.team_name,
@@ -461,6 +511,7 @@ where
                 task_stats,
             });
         }
+
         Ok(CtfTimeScoreboardExport { tasks, standings: ctftime_standings })
     }
 }
@@ -564,7 +615,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_scoreboard_ranking_and_accuracy() {
-        let score = Arc::new(TestStore::default());
+        let store = Arc::new(TestStore::default());
         let team_a = Team {
             id: TeamId("team-a".to_string()),
             name: TeamName("Team A".to_string()),
