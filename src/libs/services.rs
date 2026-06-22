@@ -266,3 +266,21 @@ where
         Ok(local_token)
     }
 }
+
+pub struct SolveService<C, S>
+where 
+    C: ChallengeRepo,
+    S: SolveRepo,
+{
+    pub challenge_repo: C,
+    pub solve_repo: S,
+}
+
+impl<C, S> SolveService<C, S>
+where 
+    C: ChallengeRepo,
+    S: SolveRepo,
+{
+    pub async fn submit_flag(
+        
+}
