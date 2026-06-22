@@ -113,7 +113,7 @@ where
     ) -> Result<Account, ServiceError> {
         let name = AccountName(username.to_string());
         if self.account_repo.find_by_username(&name).await?.is_some() {
-            return Err(ServiceError::InvalidRequest("auth-username-token".to_string()));
+            return Err(ServiceError::InvalidRequest("auth-username-taken".to_string()));
         }
         let account_id = AccountId(uuid::Uuid::new_v4().to_string());
         let salt = generate_salt();
@@ -205,7 +205,7 @@ where
         let account = match self.account_repo.find_by_ctftime_id(profile.id).await? {
             Some(acc) => acc,
             None => {
-                let mut base_name = profile.username.clone();
+                let base_name = profile.username.clone();
                 let mut check_name = AccountName(base_name.clone());
                 let mut suffix = 1;
                 while self.account_repo.find_by_username(&check_name).await?.is_some() {
@@ -308,7 +308,7 @@ where
             FlagValidator::Instanced => false,
         };
 
-        let total_solves = self.submission_repo.find_all().await?
+        let _total_solves = self.submission_repo.find_all().await?
             .iter()
             .filter(|s| s.challenge_id == challenge_id && s.is_correct)
             .count() as u32;
@@ -616,8 +616,8 @@ mod tests {
             fields: HashMap::new(),
             create_at: 0,
         };
-        store.save(team_a).await.unwrap();
-        store.save(team_b).await.unwrap();
+        TeamRepo::save(store.as_ref(), team_a).await.unwrap();
+        TeamRepo::save(store.as_ref(), team_b).await.unwrap();
         let challenge = Challenge {
             id: "chall-1".to_string(),
             title: crate::libs::types::challenges::ChallengeTitle("Chall 1".to_string()),
@@ -634,7 +634,7 @@ mod tests {
             tags: Vec::new(),
             requirements: Vec::new(),
         };
-        store.save(challenge).await.unwrap();
+        ChallengeRepo::save(store.as_ref(), challenge).await.unwrap();
         let solver = SolveService {
             challenge_repo: store.clone(),
             submission_repo: store.clone(),
