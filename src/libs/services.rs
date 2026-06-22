@@ -282,5 +282,60 @@ where
     S: SolveRepo,
 {
     pub async fn submit_flag(
-        
+        &self,
+        challenge_id: &str,
+        team_id: Option<TeamId>,
+        account_id: AccountId,
+        submitted_flag: &str,
+    ) -> Result<Solve, ServiceError> {
+        let challenge = self.challenge_repo.find_by_id(challenge_id).await?
+            .ok_or_else(|| ServiceError::InvalidRequest("ctf-challenge-not-found".to_string()))?;
+        if let Some(ref t_id) = team_id {
+            let solves = self.solve_repo.find_by_team(t_id).await?;
+            if solves.iter().any(|s| s.challenge_id == challenge_id) {
+                return Err(ServiceError::InvalidRequest("ctf-challenge-already-solved".to_string()));
+            }
+        }
+        let is_valid = match &challenge.flag {
+            FlagValidator::Static(flag) => flag.trim() == submitted_flag.trim(),
+            FlagValidator::Regex(pattern) => {
+                let re = regex::Regex::new(pattern)
+                    .map_err(|_| ServiceError::InvalidRequest("admin-invalid-regex".to_string()))?;
+                re.is_match(submitted_flag.trim())
+            }
+            FlagValidator::Script(_script) => {
+                // TODO: implement script-based flag validation
+                false
+            }
+            FlagValidator::Instanced => {
+                // TODO: implement instanced flag validation; validated against container/passed
+                // into
+                false
+            }
+        };
+        if !is_valid {
+            return Err(ServiceError::InvalidRequest("ctf-incorrect-flag".to_string()));
+        }
+        let points_awarded =  match challenge.points.mode {
+            ScoringMode::PointValue => challenge.points.equation.parse::<u32>().unwrap_or(0) // TODO: handle parse error
+            ScoringMode::PointAttribution => {
+                let total_solves = self.solve_repo.find_all().await?
+                    .iter()
+                    .filter(|s| s.challenge_id == challenge_id)
+                    .count() as u32;
+                let initial = challenge.points.equation.parse::<u32>().unwrap_or(0); // TOOD:handle parse error here as well!!
+                initial.saturating_sub(total_solves*5).max(100)
+            }
+        };
+        let solve = Solve{
+            challenge_id: challenge_id.to_string(),
+            team_id,
+            account_id,
+            points: points_awarded,
+            provided_flag: submitted_flag.to_string(),
+            solved_at: chrono::Utc::now().timestamp(),
+        };
+        self.solve_repo.save(solve.clone()).await?;
+        Ok(solve)
+    }
 }
