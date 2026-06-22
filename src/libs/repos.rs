@@ -1,7 +1,7 @@
 use crate::libs::types::accounts::{Account, AccountId, AccountName};
 use crate::libs::types::teams::{Team, TeamId, TeamName};
 use crate::libs::types::challenges::Challenge;
-use crate::libs::types::solves::Solve;
+use crate::libs::types::solves::{Submission, SubmissionId};
 use fluent_templates::{static_loader, Loader, fluent_bundle::FluentValue};
 use std::collections::HashMap;
 use std::borrow::Cow;
@@ -73,9 +73,8 @@ pub trait ChallengeRepo: Send + Sync {
     async fn save(&self, challenge: Challenge) -> Result<(), RepoError>;
 }
 
-pub trait SolveRepo: Send + Sync {
-    async fn find_all(&self) -> Result<Vec<Solve>, RepoError>;
-    async fn find_by_team(&self, team_id: &TeamId) -> Result<Vec<Solve>, RepoError>;
-    async fn save(&self, solve: Solve) -> Result<(), RepoError>;
+pub trait SubmissionRepo: Send + Sync {
+    async fn find_all(&self( -> Result<Vec<Submission>, RepoError>;
+    async fn find_by_team(&self, team_id: &TeamId) -> Result<Vec<Submission>, RepoError>;
+    async fn save(&self, submission: Submission) -> Result<(), RepoError>;
 }
-

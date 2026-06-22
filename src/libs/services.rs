@@ -1,8 +1,8 @@
-use crate::libs::repos::{AccountRepo, TeamRepo, ChallengeRepo, SolveRepo, RepoError};
+use crate::libs::repos::{AccountRepo, TeamRepo, ChallengeRepo, SubmissionRepo, RepoError};
 use crate::libs::types::accounts::{Account, AccountId, AccountName, AccountEmail, AccountRole, CtfTimeUserProfile};
 use crate::libs::types::teams::{Team, TeamId, TeamName};
 use crate::libs::types::challenges::{Challenge, ScoringMode};
-use crate::libs::types::solves::{Solve,SolveId};
+use crate::libs::types::solves::{Submission,SubmissionId};
 use crate::libs::types::flags::FlagValidator;
 use crate::libs::crypto::jwt;
 use crate::libs::types::scoreboard::{ScoreboardEntry, CtfTimeScoreboardExport, CtfTimeStandingsEntry, CtfTimeTaskStats};
@@ -11,6 +11,7 @@ use sha2::{Sha256, Digest};
 use std::collections::HashMap;
 use std::borrow::Cow;
 use std::fmt;
+use std::sync::Arc;
 use unic_langid::langid;
 
 static_loader! {
@@ -461,5 +462,172 @@ where
             });
         }
         Ok(CtfTimeScoreboardExport { tasks, standings: ctftime_standings })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::sync::RwLock;
+
+    #[derive(Default)]
+    struct TestStore{
+        accounts: RwLock<HashMap<AccountId, Account>>,
+        teams: RwLock<HashMap<TeamId, Team>>,
+        challenges: RwLock<HashMap<String, Challenge>>,
+        submissions: RwLock<Vec<Submission>>,
+    }
+
+    impl AccountRepo for TestStore{
+        async fn find_by_id(&self, id: &AccountId) -> Result<Option<Account>,RepoError> {
+            Ok(self.accounts.read().await.get(id).cloned())
+        }
+        async fn find_by_username(&self, username: &AccountName) -> Result<Option<Account>, RepoError> {
+            Ok(self.accounts.read().await.values().find(|a| &a.username == username).cloned())
+        }
+        async fn find_by_ctftime_id(&self, ctftime_id: u32) -> Result<Option<Account>, RepoError> {
+            Ok(self.accounts.read().await.values().find(|a| a.ctftime_id == Some(ctftime_id)).cloned())
+        }
+        async fn save(&self, account: Account) -> Result<(), RepoError> {
+            self.accounts.write().await.insert(account.id.clone(), account);
+            Ok(())
+        }
+        async fn update(&self, account: Account) -> Result<(), RepoError> {
+            self.accounts.write().await.insert(account.id.clone(), account);
+            Ok(())
+        }
+    }
+
+    impl TeamRepo for TestStore{
+        async fn find_by_id(&self, id: &TeamId) -> Result<Option<Team>,RepoError> {
+            Ok(self.teams.read().await.get(id).cloned())
+        }
+        async fn find_by_name(&self, name: &TeamName) -> Result<Option<Team>, RepoError> {
+            Ok(self.teams.read().await.values().find(|t| &t.name == name).cloned())
+        }
+        async fn find_by_ctftime_id(&self, ctftime_id: u32) -> Result<Option<Team>, RepoError> {
+            Ok(self.teams.read().await.values().find(|t| t.ctftime_id == Some(ctftime_id)).cloned())
+        }
+        async fn save(&self, team: Team) -> Result<(), RepoError> {
+            self.teams.write().await.insert(team.id.clone(), team);
+            Ok(())
+        }
+        async fn update(&self, team: Team) -> Result<(), RepoError> {
+            self.teams.write().await.insert(team.id.clone(), team);
+            Ok(())
+        }
+        async fn find_all(&self) -> Result<Vec<Team>, RepoError> {
+            Ok(self.teams.read().await.values().cloned().collect())
+        }
+    }
+
+    impl ChallengeRepo for TestStore{
+        async fn find_by_id(&self, id: &str) -> Result<Option<Challenge>,RepoError> {
+            Ok(self.challenges.read().await.get(id).cloned())
+        }
+        async fn save(&self, challenge: Challenge) -> Result<(), RepoError> {
+            self.challenges.write().await.insert(challenge.id.clone(), challenge);
+            Ok(())
+        }
+        async fn find_all(&self) -> Result<Vec<Challenge>, RepoError> {
+            Ok(self.challenges.read().await.values().cloned().collect())
+        }
+    }
+
+    impl SubmissionRepo for TestStore{
+        async fn save(&self, submission: Submission) -> Result<(), RepoError> {
+            self.submissions.write().await.push(submission);
+            Ok(())
+        }
+        async fn find_by_team(&self, team_id: &TeamId) -> Result<Vec<Submission>, RepoError> {
+            Ok(self.submissions.read().await.iter().filter(|s| s.team_id.as_ref() == Some(team_id)).cloned().collect())
+        }
+        async fn find_all(&self) -> Result<Vec<Submission>, RepoError> {
+            Ok(self.submissions.read().await.clone())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_auth_and_submissions() {
+        let store = Arc::new(TestStore::default());
+        let auth = AuthService {
+            account_repo: store.clone(),
+            team_repo: store.clone(),
+            jwt_secret: b"secret".to_vec(),
+        };
+        let account = auth.register("unittest", Some("unittest@example.com"), "unittest_password").await.unwrap();
+        assert_eq!(account.username.0, "unittest");
+        let token = auth.login("unittest", "unittest_password").await.unwrap();
+        assert!(!token.is_empty());
+        let bad_login = auth.login("unittest", "wrong_password").await;
+        assert!(bad_login.is_err());
+    }
+    #[tokio::test]
+    async fn test_scoreboard_ranking_and_accuracy() {
+        let score = Arc::new(TestStore::default());
+        let team_a = Team {
+            id: TeamId("team-a".to_string()),
+            name: TeamName("Team A".to_string()),
+            ctftime_id: None,
+            invite_code: None,
+            captain_id: AccountId("captain-a".to_string()),
+            member_ids: vec![AccountId("captain-a".to_string())],
+            fields: HashMap::new(),
+            create_at: 0,
+        };
+        let team_b = Team {
+            id: TeamId("team-b".to_string()),
+            name: TeamName("Team B".to_string()),
+            ctftime_id: None,
+            invite_code: None,
+            captain_id: AccountId("captain-b".to_string()),
+            member_ids: vec![AccountId("captain-b".to_string())],
+            fields: HashMap::new(),
+            create_at: 0,
+        };
+        store.save(team_a).await.unwrap();
+        store.save(team_b).await.unwrap();
+        let challenge = Challenge {
+            id: "chall-1".to_string(),
+            title: crate::libs::types::challenges::ChallengeTitle("Chall 1".to_string()),
+            description: crate::libs::types::challenges::ChallengeDescription(crate::libs::types::htmlstring::HtmlString("Desc".to_string())),
+            category: crate::libs::types::challenges::ChallengeCategory("Web".to_string()),
+            points: crate::libs::types::challenges::ChallengePoints {
+                mode: ScoringMode::PointValue,
+                equation: "500".to_string(),
+            },
+            flag: FlagValidator::Static("flag{test}".to_string()),
+            author: crate::libs::types::challenges::ChallengeAuthor { id: "admin".to_string(), username: "admin".to_string() },
+            hints: Vec::new(),
+            files: Vec::new(),
+            tags: Vec::new(),
+            requirements: Vec::new(),
+        };
+        store.save(challenge).await.unwrap();
+        let solver = SolveService {
+            challenge_repo: store.clone(),
+            submission_repo: store.clone(),
+        };
+        solver.submit_flag("chall-1", Some(TeamId("team-a".to_string())), AccountId("user-1".to_string()), "flag{test}").await.unwrap();
+        let fail = solver.submit_flag("chall-1", Some(TeamId("team-b".to_string())), AccountId("user-2".to_string()), "wrong-flag").await;
+        assert!(fail.is_err());
+        solver.submit_flag("chall-1", Some(TeamId("team-b".to_string())), AccountId("user-2".to_string()), "flag{test}").await.unwrap();
+        let scoreboard_service = ScoreboardService {
+            team_repo: store.clone(),
+            challenge_repo: store.clone(),
+            submission_repo: store.clone(),
+            sort_by_accuracy: false,
+        };
+        let board = scoreboard_service.get_scoreboard().await.unwrap();
+        assert_eq!(board[0].team_name, "Team A");
+        assert_eq!(board[1].team_name, "Team B");
+        let scoreboard_service_acc = ScoreboardService {
+            team_repo: store.clone(),
+            challenge_repo: store.clone(),
+            submission_repo: store.clone(),
+            sort_by_accuracy: true,
+        };
+        let board_acc = scoreboard_service_acc.get_scoreboard().await.unwrap();
+        assert_eq!(board_acc[0].team_name, "Team A");
     }
 }
