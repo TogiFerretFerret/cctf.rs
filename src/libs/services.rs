@@ -189,11 +189,11 @@ where
             .json::<serde_json::Value>()
             .await
             .map_err(|_| ServiceError::OAuth("auth-oauth-token-parse-failed".to_string()))?;
-        let access_token = token.resp.get("access_token")
+        let access_token = token_resp.get("access_token")
             .and_then(|t| t.as_str())
             .ok_or_else(|| ServiceError::OAuth("auth-oauth-token-missing".to_string()))?;
         let profile = client
-            .get("https://oauth.ctftime.org/profile")
+            .get("https://oauth.ctftime.org/user")
             .bearer_auth(access_token)
             .send()
             .await
