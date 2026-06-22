@@ -65,7 +65,10 @@ fn hash_password(password: &str, salt: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(salt.as_bytes());
     hasher.update(password.as_bytes());
-    let hash_hex = format!("{:x}", hasher.finalize());
+    let hash_hex: String = hasher.finalize()
+        .iter()
+        .map(|b| format!("{:02x}", b))
+        .collect();
     format!("{}${}", salt, hash_hex)
 }
 
@@ -79,7 +82,10 @@ fn verify_password(password: &str, stored_hash: &str) -> bool {
     let mut hasher = Sha256::new();
     hasher.update(salt.as_bytes());
     hasher.update(password.as_bytes());
-    let hash_hex = format!("{:x}", hasher.finalize());
+    let hash_hex: String = hasher.finalize()
+        .iter()
+        .map(|b| format!("{:02x}", b))
+        .collect();
     hash_hex == expected_hash
 }
 
@@ -100,7 +106,7 @@ impl AuthService {
         if self.account_repo.find_by_username(&name).await?.is_some() {
             return Err(ServiceError::InvalidRequest("auth-username-taken".to_string()));
         }
-        let account_id = AccountId(uuid::Uuid::new_4().to_string());
+        let account_id = AccountId(uuid::Uuid::new_v4().to_string());
         let salt = generate_salt();
         let hashed = hash_password(password, &salt);
         let account = Account {
