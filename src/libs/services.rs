@@ -89,22 +89,30 @@ fn verify_password(password: &str, stored_hash: &str) -> bool {
     hash_hex == expected_hash
 }
 
-pub struct AuthService {
-    pub account_repo: Arc<dyn AccountRepo>,
-    pub team_repo: Arc<dyn TeamRepo>,
-    pub jwt_secret: Vec<u8>
+pub struct AuthService<A, T>
+where 
+    A: AccountRepo,
+    T: TeamRepo,
+{
+    pub account_repo: A, 
+    pub team_repo: T,
+    pub jwt_secret: Vec<u8>,
 }
 
-impl AuthService {
+impl<A, T> AuthService<A, T>
+where 
+    A: AccountRepo,
+    T: TeamRepo,
+{
     pub async fn register(
-        &self, 
+        &self,
         username: &str,
         email: Option<&str>,
         password: &str,
     ) -> Result<Account, ServiceError> {
         let name = AccountName(username.to_string());
         if self.account_repo.find_by_username(&name).await?.is_some() {
-            return Err(ServiceError::InvalidRequest("auth-username-taken".to_string()));
+            return Err(ServiceError::InvalidRequest("auth-username-token".to_string()));
         }
         let account_id = AccountId(uuid::Uuid::new_v4().to_string());
         let salt = generate_salt();
@@ -133,7 +141,128 @@ impl AuthService {
         if !verify_password(password, stored_hash) {
             return Err(ServiceError::InvalidRequest("auth-invalid-credentials".to_string()));
         }
-        let token = jwt::encode(&account.id.0, &self.jwt_secret).map_err(|e| ServiceError::OAuth(e.to_string()))?;
+        let token = jwt::encode(&account.id.0, &self.jwt_secret)
+            .map_err(|e| ServiceError::OAuth(e.to_string()))?;
         Ok(token)
+    }
+}
+
+pub struct OAuthService<A, T>
+where 
+    A: AccountRepo,
+    T: TeamRepo,
+{
+        pub account_repo: A,
+        pub team_repo: T,
+        pub client_id: String,
+        pub client_secret: String,
+        pub redirect_uri: String,
+        pub jwt_secret: Vec<u8>,
+}
+
+impl<A, T> OAuthService<A, T>
+where 
+    A: AccountRepo,
+    T: TeamRepo,
+{
+    pub fn get_authorize_url(&self) -> String {
+        format!(
+            "https://oauth.ctftime.org/authorize?client_id={}&redirect_uri={}&response_type=code&scope=profile+team",
+            self.client_id, self.redirect_uri
+        )
+    }
+
+    pub async fn handle_callback(&self, code: &str) -> Result<String, ServiceError> {
+        let client = reqwest::Client::new();
+        let token_resp = client
+            .post("https://oauth.ctftime.org/token")
+            .form(&[
+                ("client_id", &self.client_id),
+                ("client_secret", &self.client_secret),
+                ("redirect_uri", &self.redirect_uri),
+                ("grant_type", &"authorization_code".to_string()),
+                ("code", &code.to_string()),
+            ])
+            .send()
+            .await
+            .map_err(|_| ServiceError::OAuth("auth-oauth-token-failed".to_string()))?
+            .json::<serde_json::Value>()
+            .await
+            .map_err(|_| ServiceError::OAuth("auth-oauth-token-parse-failed".to_string()))?;
+        let access_token = token.resp.get("access_token")
+            .and_then(|t| t.as_str())
+            .ok_or_else(|| ServiceError::OAuth("auth-oauth-token-missing".to_string()))?;
+        let profile = client
+            .get("https://oauth.ctftime.org/profile")
+            .bearer_auth(access_token)
+            .send()
+            .await
+            .map_err(|_| ServiceError::OAuth("auth-oauth-profile-failed".to_string()))?
+            .json::<CtfTimeUserProfile>()
+            .await
+            .map_err(|_| ServiceError::OAuth("auth-oauth-profile-parse-failed".to_string()))?;  
+        let account = match self.account_repo.find_by_ctftime_id(profile.id).await? {
+            Some(acc) => acc,
+            None => {
+                let mut base_name = profile.username.clone();
+                let mut check_name = AccountName(base_name.clone());
+                let mut suffix = 1;
+                while self.account_repo.find_by_username(&check_name).await?.is_some() {
+                    check_name = AccountName(format!("{}{}", base_name, suffix));
+                    suffix += 1;
+                } // TODO: this probably can't cause time issues because.. I know big O, but... it's
+                  // possible :shrug:
+                let mut local_team_id = None;
+                if let Some(ref ctftime_team) = profile.team {
+                    let team = match self.team_repo.find_by_ctftime_id(ctftime_team.id).await? {
+                        Some(t) => t,
+                        None => {
+                            let team_id = TeamId(uuid::Uuid::new_v4().to_string());
+                            let dummy_captain = AccountId("system-oauth".to_string());
+                            let new_team = Team {
+                                id: team_id.clone(),
+                                name: TeamName(ctftime_team.name.clone()),
+                                ctftime_id: Some(ctftime_team.id),
+                                invite_code: None,
+                                captain_id: dummy_captain,
+                                member_ids: Vec::new(),
+                                fields: HashMap::new(),
+                                create_at: chrono::Utc::now().timestamp(),
+                            };
+                            self.team_repo.save(new_team.clone()).await?;
+                            new_team
+                        }
+                    };
+                    local_team_id = Some(team.id);
+                }
+                let new_account = Account {
+                    id: AccountId(uuid::Uuid::new_v4().to_string()),
+                    username: check_name,
+                    email: profile.email.map(|e| AccountEmail(e)),
+                    password_hash: None,
+                    role: AccountRole::Player,
+                    team_id: local_team_id.clone(),
+                    ctftime_id: Some(profile.id),
+                    fields: HashMap::new(),
+                    created_at: chrono::Utc::now().timestamp(),
+                };
+                self.account_repo.save(new_account.clone()).await?;
+                if let Some(t_id) = local_team_id {
+                    if let Some(mut team) = self.team_repo.find_by_id(&t_id).await? {
+                        if team.captain_id.0 == "system-oauth" { // TODO: security issue if someone names
+                                                                 // something system-oauth???
+                            team.captain_id = new_account.id.clone(); // this may mitigate?
+                        }
+                        team.member_ids.push(new_account.id.clone());
+                        team.member_ids.push(new_account.id.clone());
+                        self.team_repo.update(team).await?;
+                    }
+                }
+                new_account
+            }
+        };
+        let local_token = jwt::encode(&account.id.0, &self.jwt_secret)
+            .map_err(|_| ServiceError::OAuth("auth-token-generation-failed".to_string()))?;
+        Ok(local_token)
     }
 }
