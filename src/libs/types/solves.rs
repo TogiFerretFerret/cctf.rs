@@ -13,5 +13,6 @@ pub struct Submission {
     pub account_id: AccountId,
     pub points: u32,
     pub provided_flag: String,
-    pub solved_at: i64,
+    pub is_correct: bool,
+    pub submitted_at: i64,
 }
