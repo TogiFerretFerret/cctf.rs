@@ -64,6 +64,7 @@ pub trait TeamRepo: Send + Sync {
     async fn find_by_ctftime_id(&self, ctftime_id: u32) -> Result<Option<Team>,RepoError>;
     async fn save(&self, team: Team) -> Result<(), RepoError>;
     async fn update(&self, team: Team) -> Result<(), RepoError>;
+    async fn find_all(&self) -> Result<Vec<Team>, RepoError>;
 }
 
 pub trait ChallengeRepo: Send + Sync {

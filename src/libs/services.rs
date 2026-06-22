@@ -5,6 +5,7 @@ use crate::libs::types::challenges::{ScoringMode};
 use crate::libs::types::solves::{Solve,SolveId};
 use crate::libs::types::flags::FlagValidator;
 use crate::libs::crypto::jwt;
+use crate::libs::types::scoreboard::{ScoreboardEntry, CtfTimeScoreboardExport, CtfTimeStandingsEntry, CtfTimeTaskStats};
 use fluent_templates::{static_loader, Loader, fluent_bundle::FluentValue};
 use sha2::{Sha256, Digest};
 use std::collections::HashMap;
@@ -340,5 +341,83 @@ where
         };
         self.solve_repo.save(solve.clone()).await?;
         Ok(solve)
+    }
+}
+
+pub struct ScoreboardService<T, C, S>
+where 
+    T: TeamRepo,
+    C: ChallengeRepo,
+    S: SolveRepo,
+{
+    pub team_repo: T, 
+    pub challenge_repo: C,
+    pub solve_repo: S,
+}
+
+impl<T, C, S> ScoreboardService<T, C, S>
+where 
+    T: TeamRepo,
+    C: ChallengeRepo,
+    S: SolveRepo,
+{
+    pub async fn get_scoreboard(&self) -> Result<Vec<ScoreboardEntry>, ServiceError> {
+        let teams = self.team_repo.find_all().await?;
+        let solves = self.solve_repo.find_all().await?;
+        let challenges = self.challenge_repo.find_all().await?;
+        let challenge_map: HashMap<String, &Challenge> = challenges
+            .iter()
+            .map(|c| (c.id.clone(), c))
+            .collect();
+        let mut solve_counts: HashMap<String, u32> = HashMap::new();
+        for solve in &solves {
+            *solve_counts.entry(solve.challenge_id.clone()).or_insert(0) += 1;
+        }
+        let mut entries = Vec::new();
+        for team in teams {
+            let team_solves: Vec<&Solve> = solves
+                .iter()
+                .filter(|s| s.team_id.as_ref()==Some(&team.id))
+                .collect();
+            let mut points = 0;
+            let mut last_solve_time = None;
+            for solve in team_solves {
+                if let Some(challenge) = challenge_map.get(&solve.challenge_id) {
+                    let challenge_points = match challenge.points.mode {
+                        ScoringMode::PointValue => {
+                            let count = solve_counts.get(&solve.challenge_id).cloned().unwrap_or(1);
+                            challenge.points.equation.parse::<u32>().unwrap_or(0)
+                        }
+                        ScoringMode::PointAttribution => solve.points
+                    };
+                    points+=challenge_points;
+                    last_solve_time = match last_solve_time {
+                        None => Some(solve.solved_at),
+                        Some(t) => Some(t.max(solve.solved_at)),
+                    };
+                }
+            }
+            entries.push(ScoreboardEntry {
+                team_id: team.id,
+                team_name: team.name.0,
+                points,
+                last_solve_time,
+                rank: 0, // assign after sort
+            });
+        }
+        entries.sort_by(|a, b| {
+            b.points.cmp(&a.points).then_with(|| {
+                match (a.last_solve_time, b.last_solve_time) {
+                    (Some(t1), Some(t2)) => t1.cmp(&t2),
+                    (Some(_), None) => std::cmp::Ordering::Less,
+                    (None, Some(_)) => std::cmp::Ordering::Greater,
+                    (None, None) => std::cmp::Ordering::Equal,
+                }
+            })
+        });
+        for (i, entry) in entries.iter_mut().enumerate() {
+            entry.rank = (i + 1) as u32;
+        }
+        Ok(entries)
     }
 }

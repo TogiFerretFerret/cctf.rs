@@ -9,6 +9,7 @@ pub struct ScoreboardEntry {
     pub points: f64,
     pub last_solve_time: Option<i64>,
     pub solves: Vec<String>, // list of challenge ids
+    pub rank: u32,
 }
 
 // ctftime scoreboard export
