@@ -12,7 +12,7 @@ pub struct Solve {
     pub challenge_id: String,
     pub team_id: Option<TeamId>,
     pub account_id: AccountId,
-    pub points: ChallengePoints,
+    pub points: u32,
     pub provided_flag: String,
-    pub timestamp: i64,
+    pub solved_at: i64,
 }

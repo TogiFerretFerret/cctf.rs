@@ -1,8 +1,8 @@
 use crate::libs::repos::{AccountRepo, TeamRepo, ChallengeRepo, SolveRepo, RepoError};
 use crate::libs::types::accounts::{Account, AccountId, AccountName, AccountEmail, AccountRole, CtfTimeUserProfile};
 use crate::libs::types::teams::{Team, TeamId, TeamName};
-use crate::libs::types::challenges::{Challenge, ScoringMode};
-use crate::libs::types::solves::Solve;
+use crate::libs::types::challenges::{ScoringMode};
+use crate::libs::types::solves::{Solve,SolveId};
 use crate::libs::types::flags::FlagValidator;
 use crate::libs::crypto::jwt;
 use fluent_templates::{static_loader, Loader, fluent_bundle::FluentValue};
@@ -10,7 +10,6 @@ use sha2::{Sha256, Digest};
 use std::collections::HashMap;
 use std::borrow::Cow;
 use std::fmt;
-use std::sync::Arc;
 use unic_langid::langid;
 
 static_loader! {
@@ -316,18 +315,22 @@ where
         if !is_valid {
             return Err(ServiceError::InvalidRequest("ctf-incorrect-flag".to_string()));
         }
+        let total_solves = self.solve_repo.find_all().await?
+            .iter()
+            .filter(|s| s.challenge_id == challenge_id)
+            .count() as u32;
         let points_awarded =  match challenge.points.mode {
-            ScoringMode::PointValue => challenge.points.equation.parse::<u32>().unwrap_or(0) // TODO: handle parse error
+            ScoringMode::PointValue => {
+                // TODO: Parse/evaluate eq with x=total_solves
+                challenge.points.equation.parse::<u32>().unwrap_or(0)
+            }
             ScoringMode::PointAttribution => {
-                let total_solves = self.solve_repo.find_all().await?
-                    .iter()
-                    .filter(|s| s.challenge_id == challenge_id)
-                    .count() as u32;
-                let initial = challenge.points.equation.parse::<u32>().unwrap_or(0); // TOOD:handle parse error here as well!!
-                initial.saturating_sub(total_solves*5).max(100)
+                // TODO: Parse/evaluate eq with x=total_solves+1
+                challenge.points.equation.parse::<u32>().unwrap_or(0)
             }
         };
         let solve = Solve{
+            id: SolveId(uuid::Uuid::new_v4().to_string()),
             challenge_id: challenge_id.to_string(),
             team_id,
             account_id,
