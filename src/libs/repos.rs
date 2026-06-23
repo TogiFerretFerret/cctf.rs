@@ -7,8 +7,8 @@ use sqlx::Row;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt;
-use std::future::Future;
 use unic_langid::langid;
+use async_trait::async_trait;
 
 static_loader! {
     static LOCALES = {
@@ -49,35 +49,40 @@ impl fmt::Display for RepoError {
 
 impl std::error::Error for RepoError {}
 
+#[async_trait]
 pub trait AccountRepo: Send + Sync {
-    fn find_by_id(&self, id: &AccountId) -> impl Future<Output = Result<Option<Account>, RepoError>> + Send + '_;
-    fn find_by_username(&self, name: &AccountName) -> impl Future<Output = Result<Option<Account>, RepoError>> + Send + '_;
-    fn find_by_ctftime_id(&self, ctftime_id: u32) -> impl Future<Output = Result<Option<Account>, RepoError>> + Send + '_;
-    fn save(&self, account: Account) -> impl Future<Output = Result<(), RepoError>> + Send + '_;
-    fn update(&self, account: Account) -> impl Future<Output = Result<(), RepoError>> + Send + '_;
+    async fn find_by_id(&self, id: &AccountId) -> Result<Option<Account>, RepoError>;
+    async fn find_by_username(&self, name: &AccountName) -> Result<Option<Account>, RepoError>;
+    async fn find_by_ctftime_id(&self, ctftime_id: u32) -> Result<Option<Account>, RepoError>;
+    async fn save(&self, account: Account) -> Result<(), RepoError>;
+    async fn update(&self, account: Account) -> Result<(), RepoError>;
 }
 
+#[async_trait]
 pub trait TeamRepo: Send + Sync {
-    fn find_by_id(&self, id: &TeamId) -> impl Future<Output = Result<Option<Team>, RepoError>> + Send + '_;
-    fn find_by_name(&self, name: &TeamName) -> impl Future<Output = Result<Option<Team>, RepoError>> + Send + '_;
-    fn find_by_ctftime_id(&self, ctftime_id: u32) -> impl Future<Output = Result<Option<Team>, RepoError>> + Send + '_;
-    fn save(&self, team: Team) -> impl Future<Output = Result<(), RepoError>> + Send + '_;
-    fn update(&self, team: Team) -> impl Future<Output = Result<(), RepoError>> + Send + '_;
-    fn find_all(&self) -> impl Future<Output = Result<Vec<Team>, RepoError>> + Send + '_;
+    async fn find_by_id(&self, id: &TeamId) -> Result<Option<Team>, RepoError>;
+    async fn find_by_name(&self, name: &TeamName) -> Result<Option<Team>, RepoError>;
+    async fn find_by_ctftime_id(&self, ctftime_id: u32) -> Result<Option<Team>, RepoError>;
+    async fn save(&self, team: Team) -> Result<(), RepoError>;
+    async fn update(&self, team: Team) -> Result<(), RepoError>;
+    async fn find_all(&self) -> Result<Vec<Team>, RepoError>;
 }
 
+#[async_trait]
 pub trait ChallengeRepo: Send + Sync {
-    fn find_by_id(&self, id: &str) -> impl Future<Output = Result<Option<Challenge>, RepoError>> + Send + '_;
-    fn find_all(&self) -> impl Future<Output = Result<Vec<Challenge>, RepoError>> + Send + '_;
-    fn save(&self, challenge: Challenge) -> impl Future<Output = Result<(), RepoError>> + Send + '_;
+    async fn find_by_id(&self, id: &str) -> Result<Option<Challenge>, RepoError>;
+    async fn find_all(&self) -> Result<Vec<Challenge>, RepoError>;
+    async fn save(&self, challenge: Challenge) -> Result<(), RepoError>;
 }
 
+#[async_trait]
 pub trait SubmissionRepo: Send + Sync {
-    fn find_all(&self) -> impl Future<Output = Result<Vec<Submission>, RepoError>> + Send + '_;
-    fn find_by_team(&self, team_id: &TeamId) -> impl Future<Output = Result<Vec<Submission>, RepoError>> + Send + '_;
-    fn save(&self, submission: Submission) -> impl Future<Output = Result<(), RepoError>> + Send + '_;
+    async fn find_all(&self) -> Result<Vec<Submission>, RepoError>;
+    async fn find_by_team(&self, team_id: &TeamId) -> Result<Vec<Submission>, RepoError>;
+    async fn save(&self, submission: Submission) -> Result<(), RepoError>;
 }
 
+#[async_trait]
 impl<T: AccountRepo + ?Sized> AccountRepo for std::sync::Arc<T> {
     async fn find_by_id(&self, id: &AccountId) -> Result<Option<Account>, RepoError> {
         (**self).find_by_id(id).await
@@ -96,6 +101,7 @@ impl<T: AccountRepo + ?Sized> AccountRepo for std::sync::Arc<T> {
     }
 }
 
+#[async_trait]
 impl<T: TeamRepo + ?Sized> TeamRepo for std::sync::Arc<T> {
     async fn find_by_id(&self, id: &TeamId) -> Result<Option<Team>, RepoError> {
         (**self).find_by_id(id).await
@@ -117,6 +123,7 @@ impl<T: TeamRepo + ?Sized> TeamRepo for std::sync::Arc<T> {
     }
 }
 
+#[async_trait]
 impl<T: ChallengeRepo + ?Sized> ChallengeRepo for std::sync::Arc<T> {
     async fn find_by_id(&self, id: &str) -> Result<Option<Challenge>, RepoError> {
         (**self).find_by_id(id).await
@@ -129,6 +136,7 @@ impl<T: ChallengeRepo + ?Sized> ChallengeRepo for std::sync::Arc<T> {
     }
 }
 
+#[async_trait]
 impl<T: SubmissionRepo + ?Sized> SubmissionRepo for std::sync::Arc<T> {
     async fn find_all(&self) -> Result<Vec<Submission>, RepoError> {
         (**self).find_all().await
@@ -141,6 +149,7 @@ impl<T: SubmissionRepo + ?Sized> SubmissionRepo for std::sync::Arc<T> {
     }
 }
 
+#[async_trait]
 impl From<sqlx::Error> for RepoError {
     fn from(err: sqlx::Error) -> Self {
         match &err {
@@ -363,6 +372,7 @@ fn map_submission(row: &sqlx::postgres::PgRow) -> Result<Submission, sqlx::Error
     })
 }
 
+#[async_trait]
 impl AccountRepo for PgStore {
     async fn find_by_id(&self, id: &AccountId) -> Result<Option<Account>, RepoError> {
         let row = sqlx::query("SELECT * FROM accounts WHERE id = $1")
@@ -448,6 +458,7 @@ impl AccountRepo for PgStore {
     }
 }
 
+#[async_trait]
 impl TeamRepo for PgStore {
     async fn find_by_id(&self, id: &TeamId) -> Result<Option<Team>, RepoError> {
         let row = sqlx::query("SELECT * FROM teams WHERE id = $1")
@@ -546,6 +557,7 @@ impl TeamRepo for PgStore {
     }
 }
 
+#[async_trait]
 impl ChallengeRepo for PgStore {
     async fn find_by_id(&self, id: &str) -> Result<Option<Challenge>, RepoError> {
         let row = sqlx::query("SELECT * FROM challenges WHERE id = $1")
@@ -605,6 +617,7 @@ impl ChallengeRepo for PgStore {
     }
 }
 
+#[async_trait]
 impl SubmissionRepo for PgStore {
     async fn find_all(&self) -> Result<Vec<Submission>, RepoError> {
         let rows = sqlx::query("SELECT * FROM submissions")

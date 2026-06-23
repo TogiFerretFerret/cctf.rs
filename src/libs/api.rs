@@ -374,6 +374,7 @@ mod tests {
     use axum::http::Request;
     use tokio::sync::RwLock;
     use tower::ServiceExt;
+    use async_trait::async_trait;
 
     #[derive(Default)]
     struct TestStore {
@@ -382,6 +383,8 @@ mod tests {
         challenges: RwLock<HashMap<String, Challenge>>,
         submissions: RwLock<Vec<Submission>>,
     }
+
+    #[async_trait]
     impl AccountRepo for TestStore {
         async fn find_by_id(&self, id: &AccountId) -> Result<Option<Account>, RepoError> {
             Ok(self.accounts.read().await.get(id).cloned())
@@ -422,6 +425,7 @@ mod tests {
             Ok(())
         }
     }
+    #[async_trait]
     impl TeamRepo for TestStore {
         async fn find_by_id(&self, id: &TeamId) -> Result<Option<Team>, RepoError> {
             Ok(self.teams.read().await.get(id).cloned())
@@ -456,6 +460,7 @@ mod tests {
             Ok(self.teams.read().await.values().cloned().collect())
         }
     }
+    #[async_trait]
     impl ChallengeRepo for TestStore {
         async fn find_by_id(&self, id: &str) -> Result<Option<Challenge>, RepoError> {
             Ok(self.challenges.read().await.get(id).cloned())
@@ -471,6 +476,7 @@ mod tests {
             Ok(self.challenges.read().await.values().cloned().collect())
         }
     }
+    #[async_trait]
     impl SubmissionRepo for TestStore {
         async fn save(&self, submission: Submission) -> Result<(), RepoError> {
             self.submissions.write().await.push(submission);
