@@ -64,8 +64,9 @@ fn get_lang(headers: &HeaderMap) -> String {
         .unwrap_or_else(|| "en-US".to_string())
 }
 
+#[axum::async_trait]
 impl<S> FromRequestParts<S> for PreferredLang
-where 
+where
     S: Send + Sync,
 {
     type Rejection = StatusCode;
