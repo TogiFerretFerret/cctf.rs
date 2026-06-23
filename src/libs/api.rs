@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::borrow::Cow;
 use fluent_templates::{static_loader, Loader, fluent_bundle::FluentValue};
 use crate::libs::services::{AuthService, OAuthService, SolveService, ScoreboardService, ServiceError};
-use crate::libs::repos::PgStore;
+use crate::libs::repos::{AccountRepo, TeamRepo, ChallengeRepo, SubmissionRepo, PgStore};
 use crate::libs::types::accounts::AccountId;
 use crate::libs::types::teams::TeamId;
 
@@ -138,7 +138,13 @@ pub async fn register<A, T, C, S>(
     State(state): State<AppState<A, T, C, S>>,
     lang: PreferredLang,
     Json(payload): Json<RegisterPayload>,
-) -> Result<impl IntoResponse, LocalizedError> {
+) -> Result<impl IntoResponse, LocalizedError>
+where
+    A: AccountRepo + 'static,
+    T: TeamRepo + 'static,
+    C: ChallengeRepo + 'static,
+    S: SubmissionRepo + 'static,
+{
     let account = state.auth_service.register(
         &payload.username,
         payload.email.as_deref(),
@@ -147,46 +153,47 @@ pub async fn register<A, T, C, S>(
     Ok((StatusCode::CREATED, Json(account)))
 }
 
-#[derive(Deserialize)]
-pub struct LoginPayload {
-    pub username: String,
-    pub password: String,
-}
-
 pub async fn login<A, T, C, S>(
     State(state): State<AppState<A, T, C, S>>,
     lang: PreferredLang,
     Json(payload): Json<LoginPayload>,
-) -> Result<impl IntoResponse, LocalizedError> {
+) -> Result<impl IntoResponse, LocalizedError>
+where
+    A: AccountRepo + 'static,
+    T: TeamRepo + 'static,
+    C: ChallengeRepo + 'static,
+    S: SubmissionRepo + 'static,
+{
     let token = state.auth_service.login(&payload.username, &payload.password).await.map_localized(&lang.0)?;
     Ok(Json(serde_json::json!({"token":token})))
 }
 
 pub async fn get_oauth_url<A, T, C, S>(
     State(state): State<AppState<A, T, C, S>>,
-) -> impl IntoResponse {
+) -> impl IntoResponse
+where
+    A: AccountRepo + 'static,
+    T: TeamRepo + 'static,
+    C: ChallengeRepo + 'static,
+    S: SubmissionRepo + 'static,
+{
     let url = state.oauth_service.get_authorize_url();
     Json(serde_json::json!({"url":url}))
-}
-
-#[derive(Deserialize)]
-pub struct CallbackQuery {
-    pub code: String,
 }
 
 pub async fn oauth_callback<A, T, C, S>(
     State(state): State<AppState<A, T, C, S>>,
     lang: PreferredLang,
     axum::extract::Query(query): axum::extract::Query<CallbackQuery>,
-) -> Result<impl IntoResponse, LocalizedError> {
+) -> Result<impl IntoResponse, LocalizedError>
+where
+    A: AccountRepo + 'static,
+    T: TeamRepo + 'static,
+    C: ChallengeRepo + 'static,
+    S: SubmissionRepo + 'static,
+{
     let token = state.oauth_service.handle_callback(&query.code).await.map_localized(&lang.0)?;
     Ok(Json(serde_json::json!({"token":token})))
-}
-
-#[derive(Deserialize)]
-pub struct SubmitFlagPayload {
-    pub team_id: Option<String>,
-    pub flag: String,
 }
 
 pub async fn submit_flag<A, T, C, S>(
@@ -195,7 +202,13 @@ pub async fn submit_flag<A, T, C, S>(
     lang: PreferredLang,
     Path(challenge_id): Path<String>,
     Json(payload): Json<SubmitFlagPayload>,
-) -> Result<impl IntoResponse, LocalizedError> {
+) -> Result<impl IntoResponse, LocalizedError>
+where
+    A: AccountRepo + 'static,
+    T: TeamRepo + 'static,
+    C: ChallengeRepo + 'static,
+    S: SubmissionRepo + 'static,
+{
     let team_id = payload.team_id.map(TeamId);
     let submission = state.solve_service.submit_flag(
         &challenge_id,
@@ -210,7 +223,13 @@ pub async fn submit_flag<A, T, C, S>(
 pub async fn get_scoreboard<A, T, C, S>(
     State(state): State<AppState<A, T, C, S>>,
     lang: PreferredLang,
-) -> Result<impl IntoResponse, LocalizedError> {
+) -> Result<impl IntoResponse, LocalizedError>
+where
+    A: AccountRepo + 'static,
+    T: TeamRepo + 'static,
+    C: ChallengeRepo + 'static,
+    S: SubmissionRepo + 'static,
+{
     let board = state.scoreboard_service.get_scoreboard().await.map_localized(&lang.0)?;
     Ok(Json(board))
 }
@@ -218,21 +237,32 @@ pub async fn get_scoreboard<A, T, C, S>(
 pub async fn export_scoreboard<A, T, C, S>(
     State(state): State<AppState<A, T, C, S>>,
     lang: PreferredLang,
-) -> Result<impl IntoResponse, LocalizedError> {
+) -> Result<impl IntoResponse, LocalizedError>
+where
+    A: AccountRepo + 'static,
+    T: TeamRepo + 'static,
+    C: ChallengeRepo + 'static,
+    S: SubmissionRepo + 'static,
+{
     let export = state.scoreboard_service.export_ctftime().await.map_localized(&lang.0)?;
     Ok(Json(export))
 }
 
-
-pub fn create_router<A, T, C, S>(state: AppState<A, T, C, S>) -> Router {
+pub fn create_router<A, T, C, S>(state: AppState<A, T, C, S>) -> Router
+where
+    A: AccountRepo + 'static,
+    T: TeamRepo + 'static,
+    C: ChallengeRepo + 'static,
+    S: SubmissionRepo + 'static,
+{
     Router::new()
-        .route("/api/v1/auth/register", post(register))
-        .route("/api/v1/auth/login", post(login))
-        .route("/api/v1/auth/oauth/url", get(get_oauth_url))
-        .route("/api/v1/auth/oauth/callback", get(oauth_callback))
-        .route("/api/v1/challenges/:id/submit", post(submit_flag))
-        .route("/api/v1/scoreboard", get(get_scoreboard))
-        .route("/api/v1/scoreboard/export", get(export_scoreboard))
+        .route("/api/v1/auth/register", post(register::<A, T, C, S>))
+        .route("/api/v1/auth/login", post(login::<A, T, C, S>))
+        .route("/api/v1/auth/oauth/url", get(get_oauth_url::<A, T, C, S>))
+        .route("/api/v1/auth/oauth/callback", get(oauth_callback::<A, T, C, S>))
+        .route("/api/v1/challenges/:id/submit", post(submit_flag::<A, T, C, S>))
+        .route("/api/v1/scoreboard", get(get_scoreboard::<A, T, C, S>))
+        .route("/api/v1/scoreboard/export", get(export_scoreboard::<A, T, C, S>))
         .with_state(state)
 }
 
