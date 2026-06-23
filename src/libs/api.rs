@@ -352,7 +352,7 @@ where
             get(oauth_callback::<A, T, C, S>),
         )
         .route(
-            "/api/v1/challenges/:id/submit",
+            "/api/v1/challenges/{id}/submit",
             post(submit_flag::<A, T, C, S>),
         )
         .route("/api/v1/scoreboard", get(get_scoreboard::<A, T, C, S>))

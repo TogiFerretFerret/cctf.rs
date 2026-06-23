@@ -760,6 +760,15 @@ mod tests {
             )
             .await
             .unwrap();
+        {
+            let mut subs = store.submissions.write().await;
+            if let Some(s) = subs.iter_mut().find(|s| s.team_id.as_ref().map(|t| &t.0) == Some(&"team-a".to_string()) && s.is_correct) {
+                s.submitted_at = 100;
+            }
+            if let Some(s) = subs.iter_mut().find(|s| s.team_id.as_ref().map(|t| &t.0) == Some(&"team-b".to_string()) && s.is_correct) {
+                s.submitted_at = 200;
+            }
+        }
         let scoreboard_service = ScoreboardService {
             team_repo: store.clone(),
             challenge_repo: store.clone(),
