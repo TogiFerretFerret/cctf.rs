@@ -105,7 +105,7 @@ impl FromRequestParts<AppState> for AuthenticatedUser {
             });
         }
         let token = &auth_header["Bearer ".len()..];
-        let account_id_str = crate::libs::crypto::jwt::decode(token, &state.jwt_secret)
+        let (_,account_id_str) = crate::libs::crypto::jwt::decode(token, &state.jwt_secret)
             .map_err(|e| LocalizedError {
                 status: StatusCode::UNAUTHORIZED,
                 message: {
