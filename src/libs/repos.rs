@@ -2,13 +2,13 @@ use crate::libs::types::accounts::{Account, AccountEmail, AccountId, AccountName
 use crate::libs::types::challenges::{Challenge, ScoringMode};
 use crate::libs::types::solves::{Submission, SubmissionId};
 use crate::libs::types::teams::{Team, TeamId, TeamName};
+use async_trait::async_trait;
 use fluent_templates::{Loader, fluent_bundle::FluentValue, static_loader};
 use sqlx::Row;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt;
 use unic_langid::langid;
-use async_trait::async_trait;
 
 static_loader! {
     static LOCALES = {

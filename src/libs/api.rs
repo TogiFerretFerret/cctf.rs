@@ -371,10 +371,10 @@ mod tests {
     use crate::libs::types::challenges::Challenge;
     use crate::libs::types::solves::Submission;
     use crate::libs::types::teams::{Team, TeamName};
+    use async_trait::async_trait;
     use axum::http::Request;
     use tokio::sync::RwLock;
     use tower::ServiceExt;
-    use async_trait::async_trait;
 
     #[derive(Default)]
     struct TestStore {
