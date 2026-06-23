@@ -178,34 +178,41 @@ pub async fn register<A, T, C, S>(
     State(state): State<AppState<A, T, C, S>>,
     lang: PreferredLang,
     Json(payload): Json<RegisterPayload>,
-) -> Result<axum::response::Response, LocalizedError>
+) -> axum::response::Response
 where
     A: AccountRepo + 'static,
     T: TeamRepo + 'static,
     C: ChallengeRepo + 'static,
     S: SubmissionRepo + 'static,
 {
-    let account = state.auth_service.register(
+    let res = state.auth_service.register(
         &payload.username,
         payload.email.as_deref(),
         &payload.password,
-    ).await.map_localized(&lang.0)?;
-    Ok((StatusCode::CREATED, Json(account)).into_response()) 
+    ).await.map_localized(&lang.0);
+
+    match res {
+        Ok(account) => (StatusCode::CREATED, Json(account)).into_response(),
+        Err(err) => err.into_response(),
+    }
 }
 
 pub async fn login<A, T, C, S>(
     State(state): State<AppState<A, T, C, S>>,
     lang: PreferredLang,
     Json(payload): Json<LoginPayload>,
-) -> Result<axum::response::Response, LocalizedError>
+) -> axum::response::Response
 where
     A: AccountRepo + 'static,
     T: TeamRepo + 'static,
     C: ChallengeRepo + 'static,
     S: SubmissionRepo + 'static,
 {
-    let token = state.auth_service.login(&payload.username, &payload.password).await.map_localized(&lang.0)?;
-    Ok(Json(serde_json::json!({"token":token})).into_response())
+    let res = state.auth_service.login(&payload.username, &payload.password).await.map_localized(&lang.0);
+    match res {
+        Ok(token) => Json(serde_json::json!({"token":token})).into_response(),
+        Err(err) => err.into_response(),
+    }
 }
 
 pub async fn get_oauth_url<A, T, C, S>(
@@ -218,22 +225,25 @@ where
     S: SubmissionRepo + 'static,
 {
     let url = state.oauth_service.get_authorize_url();
-    Json(serde_json::json!({"url":url})).into_response() 
+    Json(serde_json::json!({"url":url})).into_response()
 }
 
 pub async fn oauth_callback<A, T, C, S>(
     State(state): State<AppState<A, T, C, S>>,
     lang: PreferredLang,
     axum::extract::Query(query): axum::extract::Query<CallbackQuery>,
-) -> Result<axum::response::Response, LocalizedError> 
+) -> axum::response::Response
 where
     A: AccountRepo + 'static,
     T: TeamRepo + 'static,
     C: ChallengeRepo + 'static,
     S: SubmissionRepo + 'static,
 {
-    let token = state.oauth_service.handle_callback(&query.code).await.map_localized(&lang.0)?;
-    Ok(Json(serde_json::json!({"token":token})).into_response()) 
+    let res = state.oauth_service.handle_callback(&query.code).await.map_localized(&lang.0);
+    match res {
+        Ok(token) => Json(serde_json::json!({"token":token})).into_response(),
+        Err(err) => err.into_response(),
+    }
 }
 
 pub async fn submit_flag<A, T, C, S>(
@@ -242,7 +252,7 @@ pub async fn submit_flag<A, T, C, S>(
     lang: PreferredLang,
     Path(challenge_id): Path<String>,
     Json(payload): Json<SubmitFlagPayload>,
-) -> Result<axum::response::Response, LocalizedError>
+) -> axum::response::Response
 where
     A: AccountRepo + 'static,
     T: TeamRepo + 'static,
@@ -250,42 +260,52 @@ where
     S: SubmissionRepo + 'static,
 {
     let team_id = payload.team_id.map(TeamId);
-    let submission = state.solve_service.submit_flag(
+    let res = state.solve_service.submit_flag(
         &challenge_id,
         team_id,
         user.account_id,
         &payload.flag,
     ).await
-    .map_localized(&lang.0)?;
-    Ok(Json(submission).into_response()) 
+    .map_localized(&lang.0);
+
+    match res {
+        Ok(submission) => Json(submission).into_response(),
+        Err(err) => err.into_response(),
+    }
 }
 
 pub async fn get_scoreboard<A, T, C, S>(
     State(state): State<AppState<A, T, C, S>>,
     lang: PreferredLang,
-) -> Result<axum::response::Response, LocalizedError>
+) -> axum::response::Response
 where
     A: AccountRepo + 'static,
     T: TeamRepo + 'static,
     C: ChallengeRepo + 'static,
     S: SubmissionRepo + 'static,
 {
-    let board = state.scoreboard_service.get_scoreboard().await.map_localized(&lang.0)?;
-    Ok(Json(board).into_response())
+    let res = state.scoreboard_service.get_scoreboard().await.map_localized(&lang.0);
+    match res {
+        Ok(board) => Json(board).into_response(),
+        Err(err) => err.into_response(),
+    }
 }
 
 pub async fn export_scoreboard<A, T, C, S>(
     State(state): State<AppState<A, T, C, S>>,
     lang: PreferredLang,
-) -> Result<axum::response::Response, LocalizedError> 
+) -> axum::response::Response
 where
     A: AccountRepo + 'static,
     T: TeamRepo + 'static,
     C: ChallengeRepo + 'static,
     S: SubmissionRepo + 'static,
 {
-    let export = state.scoreboard_service.export_ctftime().await.map_localized(&lang.0)?;
-    Ok(Json(export).into_response()) 
+    let res = state.scoreboard_service.export_ctftime().await.map_localized(&lang.0);
+    match res {
+        Ok(export) => Json(export).into_response(),
+        Err(err) => err.into_response(),
+    }
 }
 
 pub fn create_router<A, T, C, S>(state: AppState<A, T, C, S>) -> Router
