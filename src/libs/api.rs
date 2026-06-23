@@ -1,4 +1,4 @@
-use crate::libs::repos::{AccountRepo, ChallengeRepo, PgStore, SubmissionRepo, TeamRepo};
+use crate::libs::repos::{AccountRepo, ChallengeRepo, SubmissionRepo, TeamRepo};
 use crate::libs::services::{
     AuthService, OAuthService, ScoreboardService, ServiceError, SolveService,
 };
