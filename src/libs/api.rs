@@ -64,7 +64,6 @@ fn get_lang(headers: &HeaderMap) -> String {
         .unwrap_or_else(|| "en-US".to_string())
 }
 
-#[axum::async_trait]
 impl<S> FromRequestParts<S> for PreferredLang
 where
     S: Send + Sync,
@@ -111,7 +110,6 @@ pub struct AuthenticatedUser {
     pub account_id: AccountId,
 }
 
-#[axum::async_trait]
 impl<A, T, C, S> FromRequestParts<AppState<A, T, C, S>> for AuthenticatedUser
 where
     A: AccountRepo + 'static,
