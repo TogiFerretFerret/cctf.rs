@@ -258,3 +258,388 @@ impl PgStore {
         })
     }
 }
+
+fn map_account(row: &sqlx::postgres::PgRow) -> Result<Account, sqlx::Error> {
+    let id: String = row.get("id");
+    let username: String = row.get("username");
+    let email: Option<String> = row.get("email");
+    let password_hash: Option<String> = row.get("password_hash");
+    let role_str: String = row.get("role");
+    let team_id_str: Option<String> = row.get("team_id");
+    let ctftime_id: Option<i32> = row.get("ctftime_id");
+    let fields_val: serde_json::Value = row.get("fields");
+    let created_at: i64 = row.get("created_at");
+    let role = match role_str.as_str() {
+        "Admin" => AccountRole::Admin,
+        "Spectator" => AccountRole::Spectator,
+        _ => AccountRole::Player,
+    };
+    let fields = serde_json::from_value(fields_val)
+        .map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
+    Ok(Account {
+        id: AccountId(id),
+        username: AccountName(username),
+        email: email.map(AccountEmail),
+        password_hash,
+        role,
+        team_id: team_id_str.map(TeamId),
+        ctftime_id: ctftime_id.map(|id| id as u32),
+        fields,
+        created_at,
+    })
+}
+
+fn map_challenge(row: &sqlx::postgres::PgRow) -> Result<Challenge, sqlx::Error> {
+    let id: String = row.get("id");
+    let title: String = row.get("title");
+    let description: String = row.get("description");
+    let category: String = row.get("category");
+    let points_mode: String = row.get("points_mode");
+    let points_equation: String = row.get("points_equation");
+    let flag_val: serde_json::Value = row.get("flag");
+    let author_id: String = row.get("author_id");
+    let author_username: String = row.get("author_username");
+    let hints_val: serde_json::Value = row.get("hints");
+    let files_val: serde_json::Value = row.get("files");
+    let tags_val: serde_json::Value = row.get("tags");
+    let requirements_val: serde_json::Value = row.get("requirements");
+    let mode = match points_mode.as_str() {
+        "PointAttribution" => ScoringMode::PointAttribution,
+        _ => ScoringMode::PointValue,
+    };
+    let flag = serde_json::from_value(flag_val)
+        .map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
+    let hints = serde_json::from_value(hints_val)
+        .map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
+    let files = serde_json::from_value(files_val)
+        .map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
+    let tags = serde_json::from_value(tags_val)
+        .map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
+    let requirements = serde_json::from_value(requirements_val)
+        .map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
+    Ok(Challenge {
+        id,
+        title: crate::libs::types::challenges::ChallengeTitle(title),
+        description: crate::libs::types::challenges::ChallengeDescription(
+            crate::libs::types::htmlstring::HtmlString(description),
+        ),
+        category: crate::libs::types::challenges::ChallengeCategory(category),
+        points: crate::libs::types::challenges::ChallengePoints {
+            mode,
+            equation: points_equation,
+        },
+        flag,
+        author: crate::libs::types::challenges::ChallengeAuthor {
+            id: author_id,
+            username: author_username,
+        },
+        hints,
+        files,
+        tags,
+        requirements,
+    })
+}
+
+fn map_submission(row: &sqlx::postgres::PgRow) -> Result<Submission, sqlx::Error> {
+    let id: String = row.get("id");
+    let challenge_id: String = row.get("challenge_id");
+    let team_id_str: Option<String> = row.get("team_id");
+    let account_id: String = row.get("account_id");
+    let points: i32 = row.get("points");
+    let provided_flag: String = row.get("provided_flag");
+    let is_correct: bool = row.get("is_correct");
+    let submitted_at: i64 = row.get("submitted_at");
+    Ok(Submission {
+        id: SubmissionId(id),
+        challenge_id,
+        team_id: team_id_str.map(TeamId),
+        account_id: AccountId(account_id),
+        points: points as u32,
+        provided_flag,
+        is_correct,
+        submitted_at,
+    })
+}
+
+impl AccountRepo for PgStore {
+    async fn find_by_id(&self, id: &AccountId) -> Result<Option<Account>, RepoError> {
+        let row = sqlx::query("SELECT * FROM accounts WHERE id = $1")
+            .bind(&id.0)
+            .fetch_optional(&self.pool)
+            .await?;
+        match row {
+            Some(r) => Ok(Some(map_account(&r)?)),
+            None => Ok(None),
+        }
+    }
+    async fn find_by_username(&self, name: &AccountName) -> Result<Option<Account>, RepoError> {
+        let row = sqlx::query("SELECT * FROM accounts WHERE username = $1")
+            .bind(&name.0)
+            .fetch_optional(&self.pool)
+            .await?;
+        match row {
+            Some(r) => Ok(Some(map_account(&r)?)),
+            None => Ok(None),
+        }
+    }
+    async fn find_by_ctftime_id(&self, ctftime_id: u32) -> Result<Option<Account>, RepoError> {
+        let row = sqlx::query("SELECT * FROM accounts WHERE ctftime_id = $1")
+            .bind(ctftime_id as i32)
+            .fetch_optional(&self.pool)
+            .await?;
+        match row {
+            Some(r) => Ok(Some(map_account(&r)?)),
+            None => Ok(None),
+        }
+    }
+    async fn save(&self, account: Account) -> Result<(), RepoError> {
+        let role_str = match account.role {
+            AccountRole::Admin => "Admin",
+            AccountRole::Spectator => "Spectator",
+            AccountRole::Player => "Player",
+        };
+        let fields_val = serde_json::to_value(&account.fields)
+            .map_err(|e| RepoError::Internal(e.to_string()))?;
+        sqlx::query(
+            "INSERT INTO accounts (id, username, email, password_hash, role, team_id, ctftime_id, fields, created_at) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)"
+        )
+        .bind(&account.id.0)
+        .bind(&account.username.0)
+        .bind(account.email.map(|e| e.0))
+        .bind(account.password_hash)
+        .bind(role_str)
+        .bind(account.team_id.map(|t| t.0))
+        .bind(account.ctftime_id.map(|id| id as i32))
+        .bind(fields_val)
+        .bind(account.created_at)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn update(&self, account: Account) -> Result<(), RepoError> {
+        let role_str = match account.role {
+            AccountRole::Admin => "Admin",
+            AccountRole::Spectator => "Spectator",
+            AccountRole::Player => "Player",
+        };
+        let fields_val = serde_json::to_value(&account.fields)
+            .map_err(|e| RepoError::Internal(e.to_string()))?;
+        sqlx::query(
+            "UPDATE accounts SET username = $1, email = $2, password_hash = $3, role = $4, team_id = $5, ctftime_id = $6, fields = $7, created_at = $8 \
+             WHERE id = $9"
+        )
+        .bind(&account.username.0)
+        .bind(account.email.map(|e| e.0))
+        .bind(account.password_hash)
+        .bind(role_str)
+        .bind(account.team_id.map(|t| t.0))
+        .bind(account.ctftime_id.map(|id| id as i32))
+        .bind(fields_val)
+        .bind(account.created_at)
+        .bind(&account.id.0)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+}
+
+impl TeamRepo for PgStore {
+    async fn find_by_id(&self, id: &TeamId) -> Result<Option<Team>, RepoError> {
+        let row = sqlx::query("SELECT * FROM teams WHERE id = $1")
+            .bind(&id.0)
+            .fetch_optional(&self.pool)
+            .await?;
+        match row {
+            Some(r) => Ok(Some(self.map_team(&r).await?)),
+            None => Ok(None),
+        }
+    }
+    async fn find_by_name(&self, name: &TeamName) -> Result<Option<Team>, RepoError> {
+        let row = sqlx::query("SELECT * FROM teams WHERE name = $1")
+            .bind(&name.0)
+            .fetch_optional(&self.pool)
+            .await?;
+        match row {
+            Some(r) => Ok(Some(self.map_team(&r).await?)),
+            None => Ok(None),
+        }
+    }
+    async fn find_by_ctftime_id(&self, ctftime_id: u32) -> Result<Option<Team>, RepoError> {
+        let row = sqlx::query("SELECT * FROM teams WHERE ctftime_id = $1")
+            .bind(ctftime_id as i32)
+            .fetch_optional(&self.pool)
+            .await?;
+        match row {
+            Some(r) => Ok(Some(self.map_team(&r).await?)),
+            None => Ok(None),
+        }
+    }
+    async fn save(&self, team: Team) -> Result<(), RepoError> {
+        let fields_val = serde_json::to_value(&team.fields)
+            .map_err(|e| RepoError::Internal(e.to_string()))?;
+
+        sqlx::query(
+            "INSERT INTO teams (id, name, ctftime_id, invite_code, captain_id, fields, created_at) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7)"
+        )
+        .bind(&team.id.0)
+        .bind(&team.name.0)
+        .bind(team.ctftime_id.map(|id| id as i32))
+        .bind(team.invite_code)
+        .bind(&team.captain_id.0)
+        .bind(fields_val)
+        .bind(team.create_at)
+        .execute(&self.pool)
+        .await?;
+        for member_id in &team.member_ids {
+            sqlx::query("UPDATE accounts SET team_id = $1 WHERE id = $2")
+                .bind(&team.id.0)
+                .bind(&member_id.0)
+                .execute(&self.pool)
+                .await?;
+        }
+        Ok(())
+    }
+    async fn update(&self, team: Team) -> Result<(), RepoError> {
+        let fields_val = serde_json::to_value(&team.fields)
+            .map_err(|e| RepoError::Internal(e.to_string()))?;
+        sqlx::query(
+            "UPDATE teams SET name = $1, ctftime_id = $2, invite_code = $3, captain_id = $4, fields = $5, created_at = $6 \
+             WHERE id = $7"
+        )
+        .bind(&team.name.0)
+        .bind(team.ctftime_id.map(|id| id as i32))
+        .bind(team.invite_code)
+        .bind(&team.captain_id.0)
+        .bind(fields_val)
+        .bind(team.create_at)
+        .bind(&team.id.0)
+        .execute(&self.pool)
+        .await?;
+        sqlx::query("UPDATE accounts SET team_id = NULL WHERE team_id = $1")
+            .bind(&team.id.0)
+            .execute(&self.pool)
+            .await?;
+        for member_id in &team.member_ids {
+            sqlx::query("UPDATE accounts SET team_id = $1 WHERE id = $2")
+                .bind(&team.id.0)
+                .bind(&member_id.0)
+                .execute(&self.pool)
+                .await?;
+        }
+        Ok(())
+    }
+    async fn find_all(&self) -> Result<Vec<Team>, RepoError> {
+        let rows = sqlx::query("SELECT * FROM teams")
+            .fetch_all(&self.pool)
+            .await?;
+        let mut teams = Vec::new();
+        for r in rows {
+            teams.push(self.map_team(&r).await?);
+        }
+        Ok(teams)
+    }
+}
+
+impl ChallengeRepo for PgStore {
+    async fn find_by_id(&self, id: &str) -> Result<Option<Challenge>, RepoError> {
+        let row = sqlx::query("SELECT * FROM challenges WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await?;
+        match row {
+            Some(r) => Ok(Some(map_challenge(&r)?)),
+            None => Ok(None),
+        }
+    }
+    async fn find_all(&self) -> Result<Vec<Challenge>, RepoError> {
+        let rows = sqlx::query("SELECT * FROM challenges")
+            .fetch_all(&self.pool)
+            .await?;
+        let mut challs = Vec::new();
+        for r in rows {
+            challs.push(map_challenge(&r)?);
+        }
+        Ok(challs)
+    }
+    async fn save(&self, challenge: Challenge) -> Result<(), RepoError> {
+        let mode_str = match challenge.points.mode {
+            ScoringMode::PointValue => "PointValue",
+            ScoringMode::PointAttribution => "PointAttribution",
+        };
+        let flag_val = serde_json::to_value(&challenge.flag)
+            .map_err(|e| RepoError::Internal(e.to_string()))?;
+        let hints_val = serde_json::to_value(&challenge.hints)
+            .map_err(|e| RepoError::Internal(e.to_string()))?;
+        let files_val = serde_json::to_value(&challenge.files)
+            .map_err(|e| RepoError::Internal(e.to_string()))?;
+        let tags_val = serde_json::to_value(&challenge.tags)
+            .map_err(|e| RepoError::Internal(e.to_string()))?;
+        let requirements_val = serde_json::to_value(&challenge.requirements)
+            .map_err(|e| RepoError::Internal(e.to_string()))?;
+        sqlx::query(
+            "INSERT INTO challenges (id, title, description, category, points_mode, points_equation, flag, author_id, author_username, hints, files, tags, requirements) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)"
+        )
+        .bind(&challenge.id)
+        .bind(&challenge.title.0)
+        .bind(&challenge.description.0.0)
+        .bind(&challenge.category.0)
+        .bind(mode_str)
+        .bind(&challenge.points.equation)
+        .bind(flag_val)
+        .bind(&challenge.author.id)
+        .bind(&challenge.author.username)
+        .bind(hints_val)
+        .bind(files_val)
+        .bind(tags_val)
+        .bind(requirements_val)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+}
+
+impl SubmissionRepo for PgStore {
+    async fn find_all(&self) -> Result<Vec<Submission>, RepoError> {
+        let rows = sqlx::query("SELECT * FROM submissions")
+            .fetch_all(&self.pool)
+            .await?;
+        let mut subs = Vec::new();
+        for r in rows {
+            subs.push(map_submission(&r)?);
+        }
+        Ok(subs)
+    }
+    async fn find_by_team(&self, team_id: &TeamId) -> Result<Vec<Submission>, RepoError> {
+        let rows = sqlx::query("SELECT * FROM submissions WHERE team_id = $1")
+            .bind(&team_id.0)
+            .fetch_all(&self.pool)
+            .await?;
+        let mut subs = Vec::new();
+        for r in rows {
+            subs.push(map_submission(&r)?);
+        }
+        Ok(subs)
+    }
+    async fn save(&self, submission: Submission) -> Result<(), RepoError> {
+        sqlx::query(
+            "INSERT INTO submissions (id, challenge_id, team_id, account_id, points, provided_flag, is_correct, submitted_at) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"
+        )
+        .bind(&submission.id.0)
+        .bind(&submission.challenge_id)
+        .bind(submission.team_id.map(|t| t.0))
+        .bind(&submission.account_id.0)
+        .bind(submission.points as i32)
+        .bind(&submission.provided_flag)
+        .bind(submission.is_correct)
+        .bind(submission.submitted_at)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+}
