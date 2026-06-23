@@ -19,3 +19,8 @@ auth-oauth-profile-failed = Failed to retrieve OAuth user profile
 auth-oauth-profile-parse-failed = Failed to parse OAuth user profile
 auth-token-generation-failed = Failed to generate session token
 oauth-invalid-credentials = Invalid OAuth credentials: {$reason}
+
+# API Routing & Extractor errors
+auth-missing-header = Missing Authorization header
+auth-invalid-scheme = Invalid Authorization scheme
+auth-invalid-token = Invalid token: {$reason}
