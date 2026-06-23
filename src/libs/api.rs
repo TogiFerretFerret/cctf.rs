@@ -5,7 +5,6 @@ use axum::{
     routing::{get, post},
     Router, 
     Json,
-    debug_handler,
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -26,10 +25,10 @@ static_loader! {
 
 pub struct AppState<A, T, C, S>
 where
-    A: AccountRepo,
-    T: TeamRepo,
-    C: ChallengeRepo,
-    S: SubmissionRepo,
+    A: AccountRepo + 'static,
+    T: TeamRepo + 'static,
+    C: ChallengeRepo + 'static,
+    S: SubmissionRepo + 'static,
 {
     pub auth_service: Arc<AuthService<A, T>>,
     pub oauth_service: Arc<OAuthService<A, T>>,
@@ -40,10 +39,10 @@ where
 
 impl<A, T, C, S> Clone for AppState<A, T, C, S>
 where
-    A: AccountRepo,
-    T: TeamRepo,
-    C: ChallengeRepo,
-    S: SubmissionRepo,
+    A: AccountRepo + 'static,
+    T: TeamRepo + 'static,
+    C: ChallengeRepo + 'static,
+    S: SubmissionRepo + 'static,
 {
     fn clone(&self) -> Self {
         Self {
