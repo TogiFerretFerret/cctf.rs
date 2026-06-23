@@ -7,6 +7,7 @@ use sqlx::Row;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt;
+use std::future::Future;
 use unic_langid::langid;
 
 static_loader! {
@@ -49,32 +50,32 @@ impl fmt::Display for RepoError {
 impl std::error::Error for RepoError {}
 
 pub trait AccountRepo: Send + Sync {
-    async fn find_by_id(&self, id: &AccountId) -> Result<Option<Account>, RepoError>;
-    async fn find_by_username(&self, name: &AccountName) -> Result<Option<Account>, RepoError>;
-    async fn find_by_ctftime_id(&self, ctftime_id: u32) -> Result<Option<Account>, RepoError>;
-    async fn save(&self, account: Account) -> Result<(), RepoError>;
-    async fn update(&self, account: Account) -> Result<(), RepoError>;
+    fn find_by_id(&self, id: &AccountId) -> impl Future<Output = Result<Option<Account>, RepoError>> + Send + '_;
+    fn find_by_username(&self, name: &AccountName) -> impl Future<Output = Result<Option<Account>, RepoError>> + Send + '_;
+    fn find_by_ctftime_id(&self, ctftime_id: u32) -> impl Future<Output = Result<Option<Account>, RepoError>> + Send + '_;
+    fn save(&self, account: Account) -> impl Future<Output = Result<(), RepoError>> + Send + '_;
+    fn update(&self, account: Account) -> impl Future<Output = Result<(), RepoError>> + Send + '_;
 }
 
 pub trait TeamRepo: Send + Sync {
-    async fn find_by_id(&self, id: &TeamId) -> Result<Option<Team>, RepoError>;
-    async fn find_by_name(&self, name: &TeamName) -> Result<Option<Team>, RepoError>;
-    async fn find_by_ctftime_id(&self, ctftime_id: u32) -> Result<Option<Team>, RepoError>;
-    async fn save(&self, team: Team) -> Result<(), RepoError>;
-    async fn update(&self, team: Team) -> Result<(), RepoError>;
-    async fn find_all(&self) -> Result<Vec<Team>, RepoError>;
+    fn find_by_id(&self, id: &TeamId) -> impl Future<Output = Result<Option<Team>, RepoError>> + Send + '_;
+    fn find_by_name(&self, name: &TeamName) -> impl Future<Output = Result<Option<Team>, RepoError>> + Send + '_;
+    fn find_by_ctftime_id(&self, ctftime_id: u32) -> impl Future<Output = Result<Option<Team>, RepoError>> + Send + '_;
+    fn save(&self, team: Team) -> impl Future<Output = Result<(), RepoError>> + Send + '_;
+    fn update(&self, team: Team) -> impl Future<Output = Result<(), RepoError>> + Send + '_;
+    fn find_all(&self) -> impl Future<Output = Result<Vec<Team>, RepoError>> + Send + '_;
 }
 
 pub trait ChallengeRepo: Send + Sync {
-    async fn find_by_id(&self, id: &str) -> Result<Option<Challenge>, RepoError>;
-    async fn find_all(&self) -> Result<Vec<Challenge>, RepoError>;
-    async fn save(&self, challenge: Challenge) -> Result<(), RepoError>;
+    fn find_by_id(&self, id: &str) -> impl Future<Output = Result<Option<Challenge>, RepoError>> + Send + '_;
+    fn find_all(&self) -> impl Future<Output = Result<Vec<Challenge>, RepoError>> + Send + '_;
+    fn save(&self, challenge: Challenge) -> impl Future<Output = Result<(), RepoError>> + Send + '_;
 }
 
 pub trait SubmissionRepo: Send + Sync {
-    async fn find_all(&self) -> Result<Vec<Submission>, RepoError>;
-    async fn find_by_team(&self, team_id: &TeamId) -> Result<Vec<Submission>, RepoError>;
-    async fn save(&self, submission: Submission) -> Result<(), RepoError>;
+    fn find_all(&self) -> impl Future<Output = Result<Vec<Submission>, RepoError>> + Send + '_;
+    fn find_by_team(&self, team_id: &TeamId) -> impl Future<Output = Result<Vec<Submission>, RepoError>> + Send + '_;
+    fn save(&self, submission: Submission) -> impl Future<Output = Result<(), RepoError>> + Send + '_;
 }
 
 impl<T: AccountRepo + ?Sized> AccountRepo for std::sync::Arc<T> {
