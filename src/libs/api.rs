@@ -152,6 +152,23 @@ pub struct RegisterPayload {
     pub password: String,
 }
 
+#[derive(Deserialize)]
+pub struct LoginPayload {
+    pub username: String,
+    pub password: String,
+}
+
+#[derive(Deserialize)]
+pub struct CallbackQuery {
+    pub code: String,
+}
+
+#[derive(Deserialize)]
+pub struct SubmitFlagPayload {
+    pub team_id: Option<String>,
+    pub flag: String,
+}
+
 pub async fn register<A, T, C, S>(
     State(state): State<AppState<A, T, C, S>>,
     lang: PreferredLang,
