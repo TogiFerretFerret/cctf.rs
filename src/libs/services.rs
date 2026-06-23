@@ -552,6 +552,109 @@ where
     }
 }
 
+pub struct InstancerService {
+    pub client: Client, 
+    pub namespace: String,
+    pub db_pool: sqlx::PgPool,
+}
+
+impl InstancerService {
+    pub async fn new(namespace: String, db_pool: sqlx::PgPool) -> Result<Self, kube::Error> {
+        let client = Client::try_default().await?;
+        Ok(Self { client, namespace, db_pool })
+    }
+    pub async fn spawn_instance(
+        &self,
+        challenge_id: &str, 
+        image: &str,
+        container_port: i32,
+        team_id: Option<&str>,
+        account_id: &str,
+    ) -> Result<String, ServiceError> {
+        let instance_id = format!("inst-{}", uuid::Uuid::new_v4().simple());
+        let generated_flag = format!("flag{{{}}}", uuid::Uuid::new_v4().simple()); 
+        // TODO: URGENT - FLAG FORMAT
+        let pods: Api<Pod> = Api::namespaced(self.client.clone(), &self.namespace);
+        let services: Api<Service> = Api::namespaced(self.client.clone(), &self.namespace);
+        let mut labels = BTreeMap::new();
+        labels.insert("app".to_string(), instance_id.clone());
+        labels.insert("challenge".to_string(),challenge_id.to_string());
+        let pod = Pod {
+            metadata: ObjectMeta {
+                name: Some(instance_id.clone()),
+                labels: Some(labels.clone()),
+                ..Default::default()
+            },
+            spec: Some(PodSpec {
+                containers: vec![Container {
+                    name: "challenge".to_string(),
+                    image: Some(image.to_string()),
+                    ports: Some(vec![ContainerPort {
+                        container_port,
+                        ..Default::default()
+                    }]),
+                    env: Some(vec![k8s_openapi::api::core::v1::EnvVar {
+                        name: "FLAG".to_string(),
+                        value: Some(generated_flag.clone()),
+                        ..Default::default()
+                    }]),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let service = Service {
+            metadata: ObjectMeta {
+                name: Some(instance_id.clone()),
+                labels: Some(labels.clone()),
+                ..Default::default()
+            },
+            spec: Some(ServiceSpec {
+                selector: Some(labels.clone()),
+                ports: Some(vec![ServicePort {
+                    port: container_port,
+                    target_port: Some(k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(container_port)),
+                    ..Default::default()
+                }]),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        pods.create(&kube::api::PostParams::default(), &pod).await?;
+        services.create(&kube::api::PostParams::default(), &service).await?;
+        let created_at = chrono::Utc::now().timestamp();
+        let expires_at = created_at + 3600; // TODO: Make configurable
+        sqlx::query(
+            "INSERT INTO challenge_instances (id, challenge_id, team_id, account_id, flag, created_at, expires_at) VALUES ($1, $2, $3, $4, $5, $6, $7)"
+        )
+        .bind(&instance_id)
+        .bind(challenge_id)
+        .bind(team_id)
+        .bind(account_id)
+        .bind(&generated_flag)
+        .bind(created_at)
+        .bind(expires_at)
+        .execute(&self.db_pool)
+        .await?;
+        Ok(instance_id)
+    }
+    pub async fn destroy_instances(&self, instance_id: &str) -> Result<(), ServiceError> {
+        let pods: Api<Pod> = Api::namespaced(self.client.clone(), &self.namespace);
+        let services: Api<Service> = Api::namespaced(self.client.clone(), &self.namespace);
+        let _ = services.delete(instance_id, &kube::api::DeleteParams::default()).await;
+        let _ = pods.delete(instance_id, &kube::api::DeleteParams::default()).await;
+        sqlx::query("DELETE FROM challenge_instances WHERE id = $1")
+            .bind(instance_id)
+            .execute(&self.db_pool)
+            .await?;
+        Ok(())
+    }
+
+    // TODO: Renew instance
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
