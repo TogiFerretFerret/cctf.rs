@@ -25,10 +25,10 @@ static_loader! {
 
 pub struct AppState<A, T, C, S>
 where
-    A: AccountRepo + 'static,
-    T: TeamRepo + 'static,
-    C: ChallengeRepo + 'static,
-    S: SubmissionRepo + 'static,
+    A: AccountRepo + Send + Sync + 'static,
+    T: TeamRepo + Send + Sync + 'static,
+    C: ChallengeRepo + Send + Sync + 'static,
+    S: SubmissionRepo + Send + Sync + 'static,
 {
     pub auth_service: Arc<AuthService<A, T>>,
     pub oauth_service: Arc<OAuthService<A, T>>,
@@ -39,10 +39,10 @@ where
 
 impl<A, T, C, S> Clone for AppState<A, T, C, S>
 where
-    A: AccountRepo + 'static,
-    T: TeamRepo + 'static,
-    C: ChallengeRepo + 'static,
-    S: SubmissionRepo + 'static,
+    A: AccountRepo + Send + Sync + 'static,
+    T: TeamRepo + Send + Sync + 'static,
+    C: ChallengeRepo + Send + Sync + 'static,
+    S: SubmissionRepo + Send + Sync + 'static,
 {
     fn clone(&self) -> Self {
         Self {
@@ -112,10 +112,10 @@ pub struct AuthenticatedUser {
 
 impl<A, T, C, S> FromRequestParts<AppState<A, T, C, S>> for AuthenticatedUser
 where
-    A: AccountRepo + 'static,
-    T: TeamRepo + 'static,
-    C: ChallengeRepo + 'static,
-    S: SubmissionRepo + 'static,
+    A: AccountRepo + Send + Sync + 'static,
+    T: TeamRepo + Send + Sync + 'static,
+    C: ChallengeRepo + Send + Sync + 'static,
+    S: SubmissionRepo + Send + Sync + 'static,
 {
     type Rejection = LocalizedError;
     async fn from_request_parts(parts: &mut Parts, state: &AppState<A, T, C, S>) -> Result<Self, Self::Rejection> {
@@ -180,10 +180,10 @@ pub async fn register<A, T, C, S>(
     Json(payload): Json<RegisterPayload>,
 ) -> axum::response::Response
 where
-    A: AccountRepo + 'static,
-    T: TeamRepo + 'static,
-    C: ChallengeRepo + 'static,
-    S: SubmissionRepo + 'static,
+    A: AccountRepo + Send + Sync + 'static,
+    T: TeamRepo + Send + Sync + 'static,
+    C: ChallengeRepo + Send + Sync + 'static,
+    S: SubmissionRepo + Send + Sync + 'static,
 {
     let res = state.auth_service.register(
         &payload.username,
@@ -203,10 +203,10 @@ pub async fn login<A, T, C, S>(
     Json(payload): Json<LoginPayload>,
 ) -> axum::response::Response
 where
-    A: AccountRepo + 'static,
-    T: TeamRepo + 'static,
-    C: ChallengeRepo + 'static,
-    S: SubmissionRepo + 'static,
+    A: AccountRepo + Send + Sync + 'static,
+    T: TeamRepo + Send + Sync + 'static,
+    C: ChallengeRepo + Send + Sync + 'static,
+    S: SubmissionRepo + Send + Sync + 'static,
 {
     let res = state.auth_service.login(&payload.username, &payload.password).await.map_localized(&lang.0);
     match res {
@@ -219,10 +219,10 @@ pub async fn get_oauth_url<A, T, C, S>(
     State(state): State<AppState<A, T, C, S>>,
 ) -> axum::response::Response
 where
-    A: AccountRepo + 'static,
-    T: TeamRepo + 'static,
-    C: ChallengeRepo + 'static,
-    S: SubmissionRepo + 'static,
+    A: AccountRepo + Send + Sync + 'static,
+    T: TeamRepo + Send + Sync + 'static,
+    C: ChallengeRepo + Send + Sync + 'static,
+    S: SubmissionRepo + Send + Sync + 'static,
 {
     let url = state.oauth_service.get_authorize_url();
     Json(serde_json::json!({"url":url})).into_response()
@@ -234,10 +234,10 @@ pub async fn oauth_callback<A, T, C, S>(
     axum::extract::Query(query): axum::extract::Query<CallbackQuery>,
 ) -> axum::response::Response
 where
-    A: AccountRepo + 'static,
-    T: TeamRepo + 'static,
-    C: ChallengeRepo + 'static,
-    S: SubmissionRepo + 'static,
+    A: AccountRepo + Send + Sync + 'static,
+    T: TeamRepo + Send + Sync + 'static,
+    C: ChallengeRepo + Send + Sync + 'static,
+    S: SubmissionRepo + Send + Sync + 'static,
 {
     let res = state.oauth_service.handle_callback(&query.code).await.map_localized(&lang.0);
     match res {
@@ -254,10 +254,10 @@ pub async fn submit_flag<A, T, C, S>(
     Json(payload): Json<SubmitFlagPayload>,
 ) -> axum::response::Response
 where
-    A: AccountRepo + 'static,
-    T: TeamRepo + 'static,
-    C: ChallengeRepo + 'static,
-    S: SubmissionRepo + 'static,
+    A: AccountRepo + Send + Sync + 'static,
+    T: TeamRepo + Send + Sync + 'static,
+    C: ChallengeRepo + Send + Sync + 'static,
+    S: SubmissionRepo + Send + Sync + 'static,
 {
     let team_id = payload.team_id.map(TeamId);
     let res = state.solve_service.submit_flag(
@@ -279,10 +279,10 @@ pub async fn get_scoreboard<A, T, C, S>(
     lang: PreferredLang,
 ) -> axum::response::Response
 where
-    A: AccountRepo + 'static,
-    T: TeamRepo + 'static,
-    C: ChallengeRepo + 'static,
-    S: SubmissionRepo + 'static,
+    A: AccountRepo + Send + Sync + 'static,
+    T: TeamRepo + Send + Sync + 'static,
+    C: ChallengeRepo + Send + Sync + 'static,
+    S: SubmissionRepo + Send + Sync + 'static,
 {
     let res = state.scoreboard_service.get_scoreboard().await.map_localized(&lang.0);
     match res {
@@ -296,10 +296,10 @@ pub async fn export_scoreboard<A, T, C, S>(
     lang: PreferredLang,
 ) -> axum::response::Response
 where
-    A: AccountRepo + 'static,
-    T: TeamRepo + 'static,
-    C: ChallengeRepo + 'static,
-    S: SubmissionRepo + 'static,
+    A: AccountRepo + Send + Sync + 'static,
+    T: TeamRepo + Send + Sync + 'static,
+    C: ChallengeRepo + Send + Sync + 'static,
+    S: SubmissionRepo + Send + Sync + 'static,
 {
     let res = state.scoreboard_service.export_ctftime().await.map_localized(&lang.0);
     match res {
@@ -310,10 +310,10 @@ where
 
 pub fn create_router<A, T, C, S>(state: AppState<A, T, C, S>) -> Router
 where
-    A: AccountRepo + 'static,
-    T: TeamRepo + 'static,
-    C: ChallengeRepo + 'static,
-    S: SubmissionRepo + 'static,
+    A: AccountRepo + Send + Sync + 'static,
+    T: TeamRepo + Send + Sync + 'static,
+    C: ChallengeRepo + Send + Sync + 'static,
+    S: SubmissionRepo + Send + Sync + 'static,
 {
     Router::new()
         .route("/api/v1/auth/register", post(register::<A, T, C, S>))
