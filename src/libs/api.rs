@@ -120,3 +120,113 @@ impl FromRequestParts<AppState> for AuthenticatedUser {
         })
     }
 }
+
+#[derive(Deserialize)]
+pub struct RegisterPayload {
+    pub username: String,
+    pub email: Option<String>,
+    pub password: String,
+}
+
+pub async fn register(
+    State(state): State<AppState>,
+    lang: PreferredLang,
+    Json(payload): Json<RegisterPayload>,
+) -> Result<impl IntoResponse, LocalizedError> {
+    let account = state.auth_service.register(
+        &payload.username,
+        payload.email.as_deref(),
+        &payload.password,
+    ).await.map_localized(&lang.0)?;
+    Ok((StatusCode::CREATED, Json(account)))
+}
+
+#[derive(Deserialize)]
+pub struct Loginayload {
+    pub username: String,
+    pub password: String,
+}
+
+pub async fn login(
+    State(state): State<AppState>,
+    lang: PreferredLang,
+    Json(payload): Json<LoginPayload>,
+) -> Result<impl IntoResponse, LocalizedError> {
+    let token = state.auth_service.login(&payload.username, &payload.password).await.map_localized(&lang.0)?;
+    Ok(Json(serde_json::json!({"token":token})))
+}
+
+pub async fn get_oauth_url(
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    let url = state.oauth_service.get_authorize_url();
+    Json(serde_json::json!({"url":url}))
+}
+
+#[derive(Deserialize)]
+pub struct CallbackQuery {
+    pub code: String,
+}
+
+pub async fn oauth_callback(
+    State(state): State<AppState>,
+    lang: PreferredLang,
+    axum::extract::Query(query): axum::extract::Query<CallbackQuery>,
+) -> Result<impl IntoResponse, LocalizedError> {
+    let token = state.oauth_service.handle_callback(&query.code).await.map_localized(&lang.0)?;
+    Ok(Json(serde_json::json!({"token":token})))
+}
+
+#[derive(Deserialize)]
+pub struct SubmitFlagPayload {
+    pub team_id: Option<String>,
+    pub flag: String,
+}
+
+pub async fn submit_flag(
+    State(state): State<AppState>,
+    user: AuthenticatedUser,
+    lang: PreferredLang,
+    Path(challenge_id): Path<String>,
+    Json(payload): Json<SubmitFlagPayload>,
+) -> Result<impl IntoResponse, LocalizedError> {
+    let team_id = payload.team_id.map(TeamId);
+    let submission = state.solve_service.submit_flag(
+        &challenge_id,
+        team_id,
+        user.account_id,
+        &payload.flag,
+    ).await
+    .map_localized(&lang.0)?;
+    Ok(Json(submission))
+}
+
+pub async fn get_scoreboard(
+    State(state): State<AppState>,
+    lang: PreferredLang,
+) -> Result<impl IntoResponse, LocalizedError> {
+    let board = state.scoreboard_service.get_scoreboard().await.map_localized(&lang.0)?;
+    Ok(Json(board))
+}
+
+pub async fn export_scoreboard(
+    State(state): State<AppState>,
+    lang: PreferredLang,
+) -> Result<impl IntoResponse, LocalizedError> {
+    let export = state.scoreboard_service.export_ctftime().await.map_localized(&lang.0)?;
+    Ok(Json(export))
+}
+
+
+pub fn create_router(state: AppState) -> Router {
+    Router::new()
+        .route("/api/v1/auth/register", post(register))
+        .route("/api/v1/auth/login", post(login))
+        .route("/api/v1/auth/oauth/url", get(get_oauth_url))
+        .route("/api/v1/auth/oauth/callback", get(oauth_callback))
+        .route("/api/v1/challenges/:id/submit", post(submit_flag))
+        .route("/api/v1/scoreboard", get(get_scoreboard))
+        .route("/api/v1/scoreboard/export", get(export_scoreboard))
+        .with_state(state)
+}
+
