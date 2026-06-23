@@ -142,7 +142,7 @@ pub async fn register(
 }
 
 #[derive(Deserialize)]
-pub struct Loginayload {
+pub struct LoginPayload {
     pub username: String,
     pub password: String,
 }
