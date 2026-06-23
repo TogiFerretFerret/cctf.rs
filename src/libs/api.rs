@@ -32,7 +32,13 @@ pub struct AppState<A, T, C, S> {
     pub jwt_secret: Vec<u8>,
 }
 
-impl<A, T, C, S> Clone for AppState<A, T, C, S> {
+impl<A, T, C, S> Clone for AppState<A, T, C, S>
+where
+    A: AccountRepo,
+    T: TeamRepo,
+    C: ChallengeRepo,
+    S: SubmissionRepo,
+{
     fn clone(&self) -> Self {
         Self {
             auth_service: self.auth_service.clone(),
