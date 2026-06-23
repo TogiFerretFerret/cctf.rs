@@ -11,15 +11,17 @@ use crate::libs::types::scoreboard::{
 use crate::libs::types::solves::{Submission, SubmissionId};
 use crate::libs::types::teams::{Team, TeamId, TeamName};
 use fluent_templates::{Loader, fluent_bundle::FluentValue, static_loader};
+use k8s_openapi::api::core::v1::{
+    Container, ContainerPort, Pod, PodSpec, Service, ServicePort, ServiceSpec,
+};
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+use kube::{Api, Client};
 use sha2::{Digest, Sha256};
 use std::borrow::Cow;
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::fmt;
 use unic_langid::langid;
-use kube::{Client, Api};
-use k8s_openapi::api::core::v1::{Pod, Service, Container, ContainerPort, ServicePort, ServiceSpec, PodSpec};
-use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
-use std::collections::BTreeMap;
 
 static_loader! {
     static LOCALES = {
@@ -34,11 +36,24 @@ pub enum ServiceError {
     OAuth(String),
     InvalidRequest(String),
     Unauthorized,
+    Kube(String),
 }
 
 impl From<RepoError> for ServiceError {
     fn from(err: RepoError) -> Self {
         ServiceError::Repo(err)
+    }
+}
+
+impl From<kube::Error> for ServiceError {
+    fn from(err: kube::Error) -> Self {
+        ServiceError::Kube(err.to_string())
+    }
+}
+
+impl From<sqlx::Error> for ServiceError {
+    fn from(err: sqlx::Error) -> Self {
+        ServiceError::Repo(RepoError::from(err))
     }
 }
 
@@ -55,6 +70,13 @@ impl ServiceError {
                     FluentValue::from(reason.to_string()),
                 )]);
                 LOCALES.lookup_with_args(&lang_id, "oauth-invalid-credentials", &args)
+            }
+            ServiceError::Kube(reason) => {
+                let args = HashMap::from([(
+                    Cow::Borrowed("reason"),
+                    FluentValue::from(reason.to_string()),
+                )]);
+                LOCALES.lookup_with_args(&lang_id, "kube-api-error", &args)
             }
         }
     }
@@ -529,7 +551,6 @@ where
         })
     }
 }
-
 
 #[cfg(test)]
 mod tests {

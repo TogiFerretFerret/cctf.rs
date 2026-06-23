@@ -246,7 +246,7 @@ impl PgStore {
                     flag VARCHAR(255) NOT NULL, \
                     created_att BIGINT NOT NULL, \
                     expires_at BIGINT NOT NULL, \
-                );"
+                );",
         )
         .execute(&self.pool)
         .await?;

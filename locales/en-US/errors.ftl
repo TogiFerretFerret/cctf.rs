@@ -27,4 +27,6 @@ auth-invalid-token = Invalid token: {$reason}
 
 # Kubernetes errors
 kube-api-error = Kubernetes operation failed: {$reason}
+kube-client-init-failed = Failed to initialize Kubernetes client: {$reason}
+
 
