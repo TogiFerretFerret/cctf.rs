@@ -68,7 +68,7 @@ impl<S> FromRequestParts<S> for PreferredLang
 where 
     S: Send + Sync,
 {
-    type Rejection = std::convert::Infallible;
+    type Rejection = StatusCode;
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         Ok(PreferredLang(get_lang(&parts.headers)))
     }
