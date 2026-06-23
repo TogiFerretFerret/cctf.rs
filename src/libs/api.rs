@@ -24,11 +24,11 @@ static_loader! {
 }
 
 #[derive(Clone)]
-pub struct AppState {
-    pub auth_service: Arc<AuthService<PgStore, PgStore>>,
-    pub oauth_service: Arc<OAuthService<PgStore, PgStore>>,
-    pub solve_service: Arc<SolveService<PgStore, PgStore>>,
-    pub scoreboard_service: Arc<ScoreboardService<PgStore, PgStore, PgStore>>,
+pub struct AppState<A, T, C, S> {
+    pub auth_service: Arc<AuthService<A, T>>,
+    pub oauth_service: Arc<OAuthService<A, T>>,
+    pub solve_service: Arc<SolveService<C, S>>,
+    pub scoreboard_service: Arc<ScoreboardService<T, C, S>>,
     pub jwt_secret: Vec<u8>,
 }
 
@@ -87,9 +87,15 @@ pub struct AuthenticatedUser {
     pub account_id: AccountId,
 }
 
-impl FromRequestParts<AppState> for AuthenticatedUser {
+impl<A, T, C, S> FromRequestParts<AppState<A, T, C, S>> for AuthenticatedUser
+where 
+    A: AccountRepo + 'static,
+    T: TeamRepo + 'static,
+    C: ChallengeRepo + 'static,
+    S: SubmissionRepo + 'static,
+{
     type Rejection = LocalizedError;
-    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, state: &AppState<A, T, C, S>) -> Result<Self, Self::Rejection> {
         let lang = get_lang(&parts.headers);
         let lang_id = lang.parse().unwrap_or_else(|_| unic_langid::langid!("en-US"));
         let auth_header = parts.headers.get(axum::http::header::AUTHORIZATION)
@@ -128,8 +134,8 @@ pub struct RegisterPayload {
     pub password: String,
 }
 
-pub async fn register(
-    State(state): State<AppState>,
+pub async fn register<A, T, C, S>(
+    State(state): State<AppState<A, T, C, S>>,
     lang: PreferredLang,
     Json(payload): Json<RegisterPayload>,
 ) -> Result<impl IntoResponse, LocalizedError> {
@@ -147,8 +153,8 @@ pub struct LoginPayload {
     pub password: String,
 }
 
-pub async fn login(
-    State(state): State<AppState>,
+pub async fn login<A, T, C, S>(
+    State(state): State<AppState<A, T, C, S>>,
     lang: PreferredLang,
     Json(payload): Json<LoginPayload>,
 ) -> Result<impl IntoResponse, LocalizedError> {
@@ -156,8 +162,8 @@ pub async fn login(
     Ok(Json(serde_json::json!({"token":token})))
 }
 
-pub async fn get_oauth_url(
-    State(state): State<AppState>,
+pub async fn get_oauth_url<A, T, C, S>(
+    State(state): State<AppState<A, T, C, S>>,
 ) -> impl IntoResponse {
     let url = state.oauth_service.get_authorize_url();
     Json(serde_json::json!({"url":url}))
@@ -168,8 +174,8 @@ pub struct CallbackQuery {
     pub code: String,
 }
 
-pub async fn oauth_callback(
-    State(state): State<AppState>,
+pub async fn oauth_callback<A, T, C, S>(
+    State(state): State<AppState<A, T, C, S>>,
     lang: PreferredLang,
     axum::extract::Query(query): axum::extract::Query<CallbackQuery>,
 ) -> Result<impl IntoResponse, LocalizedError> {
@@ -183,8 +189,8 @@ pub struct SubmitFlagPayload {
     pub flag: String,
 }
 
-pub async fn submit_flag(
-    State(state): State<AppState>,
+pub async fn submit_flag<A, T, C, S>(
+    State(state): State<AppState<A, T, C, S>>,
     user: AuthenticatedUser,
     lang: PreferredLang,
     Path(challenge_id): Path<String>,
@@ -201,16 +207,16 @@ pub async fn submit_flag(
     Ok(Json(submission))
 }
 
-pub async fn get_scoreboard(
-    State(state): State<AppState>,
+pub async fn get_scoreboard<A, T, C, S>(
+    State(state): State<AppState<A, T, C, S>>,
     lang: PreferredLang,
 ) -> Result<impl IntoResponse, LocalizedError> {
     let board = state.scoreboard_service.get_scoreboard().await.map_localized(&lang.0)?;
     Ok(Json(board))
 }
 
-pub async fn export_scoreboard(
-    State(state): State<AppState>,
+pub async fn export_scoreboard<A, T, C, S>(
+    State(state): State<AppState<A, T, C, S>>,
     lang: PreferredLang,
 ) -> Result<impl IntoResponse, LocalizedError> {
     let export = state.scoreboard_service.export_ctftime().await.map_localized(&lang.0)?;
@@ -218,7 +224,7 @@ pub async fn export_scoreboard(
 }
 
 
-pub fn create_router(state: AppState) -> Router {
+pub fn create_router<A, T, C, S>(state: AppState<A, T, C, S>) -> Router {
     Router::new()
         .route("/api/v1/auth/register", post(register))
         .route("/api/v1/auth/login", post(login))
@@ -230,3 +236,148 @@ pub fn create_router(state: AppState) -> Router {
         .with_state(state)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::http::Request;
+    use tower::ServiceExt;
+    use tokio::sync::RwLock;
+    use crate::libs::repos::{AccountRepo, TeamRepo, ChallengeRepo, SubmissionRepo, RepoError};
+    use crate::libs::types::accounts::{Account, AccountName};
+    use crate::libs::types::teams::{Team, TeamName};
+    use crate::libs::types::challenges::Challenge;
+    use crate::libs::types::solves::Submission;
+
+    #[derive(Default)]
+    struct TestStore {
+        accounts: RwLock<HashMap<AccountId, Account>>,
+        teams: RwLock<HashMap<TeamId, Team>>,
+        challenges: RwLock<HashMap<String, Challenge>>,
+        submissions: RwLock<Vec<Submission>>,
+    }
+    impl AccountRepo for TestStore {
+        async fn find_by_id(&self, id: &AccountId) -> Result<Option<Account>, RepoError> {
+            Ok(self.accounts.read().await.get(id).cloned())
+        }
+        async fn find_by_username(&self, username: &AccountName) -> Result<Option<Account>, RepoError> {
+            Ok(self.accounts.read().await.values().find(|a| &a.username == username).cloned())
+        }
+        async fn find_by_ctftime_id(&self, ctftime_id: u32) -> Result<Option<Account>, RepoError> {
+            Ok(self.accounts.read().await.values().find(|a| a.ctftime_id == Some(ctftime_id)).cloned())
+        }
+        async fn save(&self, account: Account) -> Result<(), RepoError> {
+            self.accounts.write().await.insert(account.id.clone(), account);
+            Ok(())
+        }
+        async fn update(&self, account: Account) -> Result<(), RepoError> {
+            self.accounts.write().await.insert(account.id.clone(), account);
+            Ok(())
+        }
+    }
+    impl TeamRepo for TestStore {
+        async fn find_by_id(&self, id: &TeamId) -> Result<Option<Team>, RepoError> {
+            Ok(self.teams.read().await.get(id).cloned())
+        }
+        async fn find_by_name(&self, name: &TeamName) -> Result<Option<Team>, RepoError> {
+            Ok(self.teams.read().await.values().find(|t| &t.name == name).cloned())
+        }
+        async fn find_by_ctftime_id(&self, ctftime_id: u32) -> Result<Option<Team>, RepoError> {
+            Ok(self.teams.read().await.values().find(|t| t.ctftime_id == Some(ctftime_id)).cloned())
+        }
+        async fn save(&self, team: Team) -> Result<(), RepoError> {
+            self.teams.write().await.insert(team.id.clone(), team);
+            Ok(())
+        }
+        async fn update(&self, team: Team) -> Result<(), RepoError> {
+            self.teams.write().await.insert(team.id.clone(), team);
+            Ok(())
+        }
+        async fn find_all(&self) -> Result<Vec<Team>, RepoError> {
+            Ok(self.teams.read().await.values().cloned().collect())
+        }
+    }
+    impl ChallengeRepo for TestStore {
+        async fn find_by_id(&self, id: &str) -> Result<Option<Challenge>, RepoError> {
+            Ok(self.challenges.read().await.get(id).cloned())
+        }
+        async fn save(&self, challenge: Challenge) -> Result<(), RepoError> {
+            self.challenges.write().await.insert(challenge.id.clone(), challenge);
+            Ok(())
+        }
+        async fn find_all(&self) -> Result<Vec<Challenge>, RepoError> {
+            Ok(self.challenges.read().await.values().cloned().collect())
+        }
+    }
+    impl SubmissionRepo for TestStore {
+        async fn save(&self, submission: Submission) -> Result<(), RepoError> {
+            self.submissions.write().await.push(submission);
+            Ok(())
+        }
+        async fn find_by_team(&self, team_id: &TeamId) -> Result<Vec<Submission>, RepoError> {
+            Ok(self.submissions.read().await.iter().filter(|s| s.team_id.as_ref() == Some(team_id)).cloned().collect())
+        }
+        async fn find_all(&self) -> Result<Vec<Submission>, RepoError> {
+            Ok(self.submissions.read().await.clone())
+        }
+    }
+    #[tokio::test]
+    async fn test_api_register_and_login() {
+        let store = Arc::new(TestStore::default());
+        let state = AppState {
+            auth_service: Arc::new(AuthService {
+                account_repo: store.clone(),
+                team_repo: store.clone(),
+                jwt_secret: b"secret".to_vec(),
+            }),
+            oauth_service: Arc::new(OAuthService {
+                account_repo: store.clone(),
+                team_repo: store.clone(),
+                client_id: "id".to_string(),
+                client_secret: "secret".to_string(),
+                redirect_uri: "uri".to_string(),
+                jwt_secret: b"secret".to_vec(),
+            }),
+            solve_service: Arc::new(SolveService {
+                challenge_repo: store.clone(),
+                submission_repo: store.clone(),
+            }),
+            scoreboard_service: Arc::new(ScoreboardService {
+                team_repo: store.clone(),
+                challenge_repo: store.clone(),
+                submission_repo: store.clone(),
+                sort_by_accuracy: false,
+            }),
+            jwt_secret: b"secret".to_vec(),
+        };
+        let app = create_router(state);
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/auth/register")
+                    .header("content-type", "application/json")
+                    .body(axum::body::Body::from(
+                        r#"{"username":"testuser","password":"testpassword","email":null}"#
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::CREATED);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/auth/login")
+                    .header("content-type", "application/json")
+                    .body(axum::body::Body::from(
+                        r#"{"username":"testuser","password":"testpassword"}"#
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+}
