@@ -32,6 +32,18 @@ pub struct AppState<A, T, C, S> {
     pub jwt_secret: Vec<u8>,
 }
 
+impl<A, T, C, S> Clone for AppState<A, T, C, S> {
+    fn clone(&self) -> Self {
+        Self {
+            auth_service: self.auth_service.clone(),
+            oauth_service: self.oauth_service.clone(),
+            solve_service: self.solve_service.clone(),
+            scoreboard_service: self.scoreboard_service.clone(),
+            jwt_secret: self.jwt_secret.clone(),
+        }
+    }
+}
+
 pub struct PreferredLang(pub String);
 
 fn get_lang(headers: &HeaderMap) -> String {
