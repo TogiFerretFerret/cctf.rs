@@ -111,8 +111,9 @@ pub struct AuthenticatedUser {
     pub account_id: AccountId,
 }
 
+#[axum::async_trait]
 impl<A, T, C, S> FromRequestParts<AppState<A, T, C, S>> for AuthenticatedUser
-where 
+where
     A: AccountRepo + 'static,
     T: TeamRepo + 'static,
     C: ChallengeRepo + 'static,
