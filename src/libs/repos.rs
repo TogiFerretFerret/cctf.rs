@@ -684,3 +684,45 @@ impl SubmissionRepo for PgStore {
         Ok(())
     }
 }
+
+#[async_trait]
+pub trait InstanceRepo: Send + Sync {
+    async fn find_active_flag(
+        &self,
+        challenge_id: &str,
+        team_id: Option<&TeamId>,
+        account_id: &AccountId,
+    ) -> Result<Option<String>, RepoError>;
+}
+
+#[async_trait]
+impl InstanceRepo for PgStore {
+    async fn find_active_flag(
+        &self, 
+        challenge_id: &str, 
+        team_id: Option<&TeamId>,
+        account_id: &AccountId,
+    ) -> Result<Option<String>, RepoError> {
+        let now = chrono::Utc::now().timestamp();
+        let row = if let Some(t_id) = team_id {
+            sqlx::query("SELECT flag FROM challenge_instances WHERE challenge_id = $1 AND team_id = $2 AND expires_at > $3")
+                .bind(challenge_id)
+                .bind(&t_id.0)
+                .bind(now)
+                .fetch_optional(&self.pool)
+                .await?
+        } else {
+            sqlx::query("SELECT flag FROM challenge_instances WHERE challenge_id = $1 AND account_id = $2 AND expires_at > $3")
+                .bind(challenge_id)
+                .bind(&account_id.0)
+                .bind(now)
+                .fetch_optional(&self.pool)
+                .await?
+        };
+        match row {
+            Some(r) => Ok(Some(r.get("flag"))),
+            None => Ok(None),
+        }
+    }
+}
+
