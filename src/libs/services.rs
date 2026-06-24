@@ -549,6 +549,7 @@ where
     }
 }
 
+#[derive(Clone)]
 pub struct InstancerService {
     pub client: Client,
     pub namespace: String,
@@ -631,7 +632,7 @@ impl InstancerService {
             .create(&kube::api::PostParams::default(), &service)
             .await?;
         let created_at = chrono::Utc::now().timestamp();
-        let expires_at = created_at + 3600; // TODO: Make configurable
+        let expires_at = created_at + 3600; // TODO: Make expiry time configurable
         sqlx::query(
             "INSERT INTO challenge_instances (id, challenge_id, team_id, account_id, flag, created_at, expires_at) VALUES ($1, $2, $3, $4, $5, $6, $7)"
         )
@@ -662,7 +663,54 @@ impl InstancerService {
         Ok(())
     }
 
-    // TODO: Renew instance
+    pub async fn renew_instance(&self, instance_id: &str, duration_seconds: i64) -> Result<(), ServiceError> {
+        let now = chrono::Utc::now().timestamp();
+        let rows_Affected = sqlx::query("UPDATE challenge_instances SET expires_at = $1 WHERE id = $2 AND expires_at > $3")
+            .bind(now + duration_seconds)
+            .bind(instance_id)
+            .bind(now)
+            .execute(&self.db_pool)
+            .await?
+            .rows_affected();
+        if rows_Affected == 0 {
+            return Err(ServiceError::InvalidRequest("ctf-instance-expired-or-not-found".to_string()));
+        }
+        Ok(())
+    }
+    pub async fn reap_expired_instances(&self) -> Result<(), ServiceError> {
+        let now = chrono::Utc::now().timestamp();
+        let expired = sqlx::query("SELECT id FROM challenge_instances WHERE expires_at <= $1")
+            .bind(now)
+            .fetch_all(&self.db_pool)
+            .await?;
+        for r in expired {
+            let id: String = r.try_get("id").map_err(RepoError::from)?;
+            let _ = self.destroy_instances(&id).await;
+        }
+        Ok(())
+    } 
+    pub fn schedule_reap(&self, instance_id: String, delay_seconds: u64) {
+        let self_clone = self.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_secs(delay_seconds)).await;
+            if let Err(e) = self_clone.destroy_instances(&instance_id).await {
+                eprintln!("Failed to precise reap instance {}: {:?}", instance_id, e);
+            }
+        });
+    }
+    pub async fn init_reaper_schedule(&self) -> Result<(), ServiceError> {
+        let now = chrono::Utc::now().timestamp();
+        let active: Vec<String, i64> = sqlx::query_as("SELECT id, expires_at FROM challenge_instances WHERE expires_at > $1")
+            .bind(now)
+            .fetch_all(&self.db_pool)
+            .await?;
+        for(id, expires_at) in active { 
+            let delay = (expires_at - now).max(0) as u64;
+            self.schedule_reap(id, delay);
+        }
+        self.reap_expired_instances().await?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
