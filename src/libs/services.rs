@@ -556,6 +556,24 @@ pub struct InstancerService {
     pub db_pool: sqlx::PgPool,
 }
 
+fn render_instanced_flag(template: &str, challenge_id: &str, random_part: &str) -> String {
+    let mut rendered = template.to_string();
+    if rendered.contains("{{random}}") || rendered.contains("{{uuid}}") {
+        rendered = rendered.replace("{{random}}", random_part);
+        rendered = rendered.replace("{{uuid}}", random_part);
+    } else if rendered.ends_with('}') && rendered.len() > 1 {
+        let pos = rendered.len() - 1;
+        if rendered.chars().nth(pos - 1) == Some('{') {
+            rendered.insert_str(pos, random_part);
+        } else {
+            rendered.insert_str(pos, &format!("_{}", random_part));
+        }
+    } else {
+        rendered.push_str(random_part);
+    }
+    rendered.replace("{{challenge}}", challenge_id)
+}
+
 impl InstancerService {
     pub async fn new(namespace: String, db_pool: sqlx::PgPool) -> Result<Self, kube::Error> {
         let client = Client::try_default().await?;
@@ -572,10 +590,12 @@ impl InstancerService {
         container_port: i32,
         team_id: Option<&str>,
         account_id: &str,
+        flag_template: &str,
+        lifespan_seconds: i64,
     ) -> Result<String, ServiceError> {
         let instance_id = format!("inst-{}", uuid::Uuid::new_v4().simple());
-        let generated_flag = format!("flag{{{}}}", uuid::Uuid::new_v4().simple());
-        // TODO: URGENT - FLAG FORMAT
+        let random_part = uuid::Uuid::new_v4().simple().to_string();
+        let generated_flag = render_instanced_flag(flag_template, challenge_id, &random_part);
         let pods: Api<Pod> = Api::namespaced(self.client.clone(), &self.namespace);
         let services: Api<Service> = Api::namespaced(self.client.clone(), &self.namespace);
         let mut labels = BTreeMap::new();
@@ -606,6 +626,7 @@ impl InstancerService {
             }),
             ..Default::default()
         };
+
         let service = Service {
             metadata: ObjectMeta {
                 name: Some(instance_id.clone()),
@@ -632,19 +653,18 @@ impl InstancerService {
             .create(&kube::api::PostParams::default(), &service)
             .await?;
         let created_at = chrono::Utc::now().timestamp();
-        let expires_at = created_at + 3600; // TODO: Make expiry time configurable
-        sqlx::query(
-            "INSERT INTO challenge_instances (id, challenge_id, team_id, account_id, flag, created_at, expires_at) VALUES ($1, $2, $3, $4, $5, $6, $7)"
-        )
-        .bind(&instance_id)
-        .bind(challenge_id)
-        .bind(team_id)
-        .bind(account_id)
-        .bind(&generated_flag)
-        .bind(created_at)
-        .bind(expires_at)
-        .execute(&self.db_pool)
-        .await?;
+        let expires_at = created_at + lifespan_seconds;
+        sqlx::query("INSERT INTO challenge_instances (id, challenge_id, team_id, account_id, flag, created_at, expires_at) VALUES ($1, $2, $3, $4, $5, $6, $7)")
+            .bind(&instance_id)
+            .bind(challenge_id)
+            .bind(team_id)
+            .bind(account_id)
+            .bind(&generated_flag)
+            .bind(created_at)
+            .bind(expires_at)
+            .execute(&self.db_pool)
+            .await?;
+        self.schedule_reap(instance_id.clone(), lifespan_seconds as u64);
         Ok(instance_id)
     }
     pub async fn destroy_instances(&self, instance_id: &str) -> Result<(), ServiceError> {
@@ -663,17 +683,25 @@ impl InstancerService {
         Ok(())
     }
 
-    pub async fn renew_instance(&self, instance_id: &str, duration_seconds: i64) -> Result<(), ServiceError> {
+    pub async fn renew_instance(
+        &self,
+        instance_id: &str,
+        duration_seconds: i64,
+    ) -> Result<(), ServiceError> {
         let now = chrono::Utc::now().timestamp();
-        let rows_Affected = sqlx::query("UPDATE challenge_instances SET expires_at = $1 WHERE id = $2 AND expires_at > $3")
-            .bind(now + duration_seconds)
-            .bind(instance_id)
-            .bind(now)
-            .execute(&self.db_pool)
-            .await?
-            .rows_affected();
+        let rows_Affected = sqlx::query(
+            "UPDATE challenge_instances SET expires_at = $1 WHERE id = $2 AND expires_at > $3",
+        )
+        .bind(now + duration_seconds)
+        .bind(instance_id)
+        .bind(now)
+        .execute(&self.db_pool)
+        .await?
+        .rows_affected();
         if rows_Affected == 0 {
-            return Err(ServiceError::InvalidRequest("ctf-instance-expired-or-not-found".to_string()));
+            return Err(ServiceError::InvalidRequest(
+                "ctf-instance-expired-or-not-found".to_string(),
+            ));
         }
         Ok(())
     }
@@ -688,7 +716,7 @@ impl InstancerService {
             let _ = self.destroy_instances(&id).await;
         }
         Ok(())
-    } 
+    }
     pub fn schedule_reap(&self, instance_id: String, delay_seconds: u64) {
         let self_clone = self.clone();
         tokio::spawn(async move {
@@ -700,11 +728,12 @@ impl InstancerService {
     }
     pub async fn init_reaper_schedule(&self) -> Result<(), ServiceError> {
         let now = chrono::Utc::now().timestamp();
-        let active: Vec<String, i64> = sqlx::query_as("SELECT id, expires_at FROM challenge_instances WHERE expires_at > $1")
-            .bind(now)
-            .fetch_all(&self.db_pool)
-            .await?;
-        for(id, expires_at) in active { 
+        let active: Vec<String, i64> =
+            sqlx::query_as("SELECT id, expires_at FROM challenge_instances WHERE expires_at > $1")
+                .bind(now)
+                .fetch_all(&self.db_pool)
+                .await?;
+        for (id, expires_at) in active {
             let delay = (expires_at - now).max(0) as u64;
             self.schedule_reap(id, delay);
         }
