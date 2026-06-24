@@ -1006,4 +1006,31 @@ mod tests {
         let board_acc = scoreboard_service_acc.get_scoreboard().await.unwrap();
         assert_eq!(board_acc[0].team_name, "Team A");
     }
+   #[test]
+    fn test_render_instanced_flag() {
+        assert_eq!(
+            render_instanced_flag("hc{chall_{{random}}}", "pwn-1", "abcde123"),
+            "hc{chall_abcde123}"
+        );
+        assert_eq!(
+            render_instanced_flag("flag{{{uuid}}}", "web-2", "9999"),
+            "flag{9999}"
+        );
+        assert_eq!(
+            render_instanced_flag("flag{{{challenge}}_{{random}}}", "crypto-1", "xyz"),
+            "flag{crypto-1_xyz}"
+        );
+        assert_eq!(
+            render_instanced_flag("flag{}", "misc-1", "1234"),
+            "flag{1234}"
+        );
+        assert_eq!(
+            render_instanced_flag("flag{static}", "pwn-2", "5678"),
+            "flag{static_5678}"
+        );
+        assert_eq!(
+            render_instanced_flag("raw_string", "pwn-3", "999"),
+            "raw_string999"
+        );
+    }
 }
