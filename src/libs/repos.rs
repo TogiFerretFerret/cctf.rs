@@ -69,6 +69,18 @@ pub trait TeamRepo: Send + Sync {
 }
 
 #[async_trait]
+pub trait InstanceRepo: Send + Sync {
+    async fn find_active_flag(
+        &self,
+        challenge_id: &str,
+        team_id: Option<&TeamId>,
+        account_id: &AccountId,
+    ) -> Result<Option<String>, RepoError>;
+}
+
+
+
+#[async_trait]
 pub trait ChallengeRepo: Send + Sync {
     async fn find_by_id(&self, id: &str) -> Result<Option<Challenge>, RepoError>;
     async fn find_all(&self) -> Result<Vec<Challenge>, RepoError>;
@@ -120,6 +132,18 @@ impl<T: TeamRepo + ?Sized> TeamRepo for std::sync::Arc<T> {
     }
     async fn find_all(&self) -> Result<Vec<Team>, RepoError> {
         (**self).find_all().await
+    }
+}
+
+#[async_trait]
+impl<T: InstanceRepo + ?Sized> InstanceRepo for std::sync::Arc<T> {
+    async fn find_active_flag(
+        &self, 
+        challenge_id: &str, 
+        team_id: Option<&TeamId>,
+        account_id: &AccountId,
+    ) -> Result<Option<String>, RepoError> {
+        (**self).find_active_flag(challenge_id, team_id, account_id).await
     }
 }
 
@@ -584,6 +608,38 @@ impl TeamRepo for PgStore {
 }
 
 #[async_trait]
+impl InstanceRepo for PgStore {
+    async fn find_active_flag(
+        &self, 
+        challenge_id: &str, 
+        team_id: Option<&TeamId>,
+        account_id: &AccountId,
+    ) -> Result<Option<String>, RepoError> {
+        let now = chrono::Utc::now().timestamp();
+        let row = if let Some(t_id) = team_id {
+            sqlx::query("SELECT flag FROM challenge_instances WHERE challenge_id = $1 AND team_id = $2 AND expires_at > $3")
+                .bind(challenge_id)
+                .bind(&t_id.0)
+                .bind(now)
+                .fetch_optional(&self.pool)
+                .await?
+        } else {
+            sqlx::query("SELECT flag FROM challenge_instances WHERE challenge_id = $1 AND account_id = $2 AND expires_at > $3")
+                .bind(challenge_id)
+                .bind(&account_id.0)
+                .bind(now)
+                .fetch_optional(&self.pool)
+                .await?
+        };
+        match row {
+            Some(r) => Ok(Some(r.get("flag"))),
+            None => Ok(None),
+        }
+    }
+}
+
+
+#[async_trait]
 impl ChallengeRepo for PgStore {
     async fn find_by_id(&self, id: &str) -> Result<Option<Challenge>, RepoError> {
         let row = sqlx::query("SELECT * FROM challenges WHERE id = $1")
@@ -685,44 +741,5 @@ impl SubmissionRepo for PgStore {
     }
 }
 
-#[async_trait]
-pub trait InstanceRepo: Send + Sync {
-    async fn find_active_flag(
-        &self,
-        challenge_id: &str,
-        team_id: Option<&TeamId>,
-        account_id: &AccountId,
-    ) -> Result<Option<String>, RepoError>;
-}
 
-#[async_trait]
-impl InstanceRepo for PgStore {
-    async fn find_active_flag(
-        &self, 
-        challenge_id: &str, 
-        team_id: Option<&TeamId>,
-        account_id: &AccountId,
-    ) -> Result<Option<String>, RepoError> {
-        let now = chrono::Utc::now().timestamp();
-        let row = if let Some(t_id) = team_id {
-            sqlx::query("SELECT flag FROM challenge_instances WHERE challenge_id = $1 AND team_id = $2 AND expires_at > $3")
-                .bind(challenge_id)
-                .bind(&t_id.0)
-                .bind(now)
-                .fetch_optional(&self.pool)
-                .await?
-        } else {
-            sqlx::query("SELECT flag FROM challenge_instances WHERE challenge_id = $1 AND account_id = $2 AND expires_at > $3")
-                .bind(challenge_id)
-                .bind(&account_id.0)
-                .bind(now)
-                .fetch_optional(&self.pool)
-                .await?
-        };
-        match row {
-            Some(r) => Ok(Some(r.get("flag"))),
-            None => Ok(None),
-        }
-    }
-}
 
