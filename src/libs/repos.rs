@@ -78,8 +78,6 @@ pub trait InstanceRepo: Send + Sync {
     ) -> Result<Option<String>, RepoError>;
 }
 
-
-
 #[async_trait]
 pub trait ChallengeRepo: Send + Sync {
     async fn find_by_id(&self, id: &str) -> Result<Option<Challenge>, RepoError>;
@@ -138,12 +136,14 @@ impl<T: TeamRepo + ?Sized> TeamRepo for std::sync::Arc<T> {
 #[async_trait]
 impl<T: InstanceRepo + ?Sized> InstanceRepo for std::sync::Arc<T> {
     async fn find_active_flag(
-        &self, 
-        challenge_id: &str, 
+        &self,
+        challenge_id: &str,
         team_id: Option<&TeamId>,
         account_id: &AccountId,
     ) -> Result<Option<String>, RepoError> {
-        (**self).find_active_flag(challenge_id, team_id, account_id).await
+        (**self)
+            .find_active_flag(challenge_id, team_id, account_id)
+            .await
     }
 }
 
@@ -610,8 +610,8 @@ impl TeamRepo for PgStore {
 #[async_trait]
 impl InstanceRepo for PgStore {
     async fn find_active_flag(
-        &self, 
-        challenge_id: &str, 
+        &self,
+        challenge_id: &str,
         team_id: Option<&TeamId>,
         account_id: &AccountId,
     ) -> Result<Option<String>, RepoError> {
@@ -637,7 +637,6 @@ impl InstanceRepo for PgStore {
         }
     }
 }
-
 
 #[async_trait]
 impl ChallengeRepo for PgStore {
@@ -740,6 +739,3 @@ impl SubmissionRepo for PgStore {
         Ok(())
     }
 }
-
-
-

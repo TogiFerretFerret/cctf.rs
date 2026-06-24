@@ -1,5 +1,7 @@
 use crate::libs::crypto::jwt;
-use crate::libs::repos::{AccountRepo, ChallengeRepo, RepoError, SubmissionRepo, TeamRepo, InstanceRepo};
+use crate::libs::repos::{
+    AccountRepo, ChallengeRepo, InstanceRepo, RepoError, SubmissionRepo, TeamRepo,
+};
 use crate::libs::types::accounts::{
     Account, AccountEmail, AccountId, AccountName, AccountRole, CtfTimeUserProfile,
 };
@@ -363,11 +365,12 @@ where
                 re.is_match(submitted_flag.trim())
             }
             FlagValidator::Instanced => {
-                let active_flag: Option<String>  = self.instance_repo
+                let active_flag: Option<String> = self
+                    .instance_repo
                     .find_active_flag(challenge_id, team_id.as_ref(), &account_id)
                     .await?;
                 match active_flag {
-                    Some(flag) => flag.trim()==submitted_flag.trim(),
+                    Some(flag) => flag.trim() == submitted_flag.trim(),
                     None => false,
                 }
             }
