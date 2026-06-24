@@ -79,7 +79,7 @@ pub trait InstanceRepo: Send + Sync {
 }
 
 #[async_trait]
-pub trait ChallengeRepo: Send + Sync {
+pub trait ChallengeRepo: InstanceRepo + Send + Sync {
     async fn find_by_id(&self, id: &str) -> Result<Option<Challenge>, RepoError>;
     async fn find_all(&self) -> Result<Vec<Challenge>, RepoError>;
     async fn save(&self, challenge: Challenge) -> Result<(), RepoError>;

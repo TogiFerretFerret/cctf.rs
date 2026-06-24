@@ -317,22 +317,19 @@ where
     }
 }
 
-pub struct SolveService<C, S, I>
+pub struct SolveService<C, S>
 where
     C: ChallengeRepo,
     S: SubmissionRepo,
-    I: InstanceRepo,
 {
     pub challenge_repo: C,
     pub submission_repo: S,
-    pub instance_repo: I,
 }
 
-impl<C, S> SolveService<C, S, I>
+impl<C, S> SolveService<C, S>
 where
     C: ChallengeRepo,
     S: SubmissionRepo,
-    I: InstanceRepo,
 {
     pub async fn submit_flag(
         &self,
@@ -366,7 +363,7 @@ where
             }
             FlagValidator::Instanced => {
                 let active_flag: Option<String> = self
-                    .instance_repo
+                    .challenge_repo
                     .find_active_flag(challenge_id, team_id.as_ref(), &account_id)
                     .await?;
                 match active_flag {
@@ -848,6 +845,17 @@ mod tests {
         async fn find_all(&self) -> Result<Vec<Team>, RepoError> {
             Ok(self.teams.read().await.values().cloned().collect())
         }
+    }
+        
+    #[async_trait]
+    impl InstanceRepo for TestStore {
+        async fn find_active_flag(
+            &self, 
+            _challenge_id: &str,
+            _team_id: Option<&TeamId>,
+            _account_id: &AccountId,
+        ) -> Result<Option<String>, RepoError> {
+            Ok(None)
     }
 
     #[async_trait]
