@@ -367,7 +367,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::libs::repos::{AccountRepo, ChallengeRepo, RepoError, SubmissionRepo, TeamRepo};
+    use crate::libs::repos::{
+        AccountRepo, ChallengeRepo, InstanceRepo, RepoError, SubmissionRepo, TeamRepo,
+    };
     use crate::libs::types::accounts::{Account, AccountName};
     use crate::libs::types::challenges::Challenge;
     use crate::libs::types::solves::Submission;
