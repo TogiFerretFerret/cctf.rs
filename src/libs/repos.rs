@@ -631,6 +631,20 @@ impl InstanceRepo for PgStore {
             None => Ok(None),
         }
     }
+    async fn get_instance_ip(&self, instance_id: &str) -> Result<Option<String>, RepoError> {
+        let now = chrono::Utc::now().timestamp();
+        let row = sqlx::query(
+            "SELECT cluster_ip FROM challenge_instances WHERE id = $1 AND expires_at > $2",
+        )
+        .bind(instance_id)
+        .bind(now)
+        .fetch_optional(&self.pool)
+        .await?;
+        match row {
+            Some(r) => Ok(Some(r.try_get("cluster_ip")?)),
+            None => Ok(None),
+        }
+    }
 }
 
 #[async_trait]

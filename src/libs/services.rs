@@ -661,17 +661,22 @@ impl InstancerService {
             ..Default::default()
         };
         pods.create(&kube::api::PostParams::default(), &pod).await?;
-        services
+        let created_service = services
             .create(&kube::api::PostParams::default(), &service)
             .await?;
+        let cluster_ip = created_service
+            .spec
+            .and_then(|spec| spec.cluster_ip)
+            .ok_or_else(|| ServiceError::Kube("service-cluster-ip-missing".to_string()))?;
         let created_at = chrono::Utc::now().timestamp();
         let expires_at = created_at + lifespan_seconds;
-        sqlx::query("INSERT INTO challenge_instances (id, challenge_id, team_id, account_id, flag, created_at, expires_at) VALUES ($1, $2, $3, $4, $5, $6, $7)")
+        sqlx::query("INSERT INTO challenge_instances (id, challenge_id, team_id, account_id, flag, cluster_ip, created_at, expires_at) VALUES ($1, $2, $3, $4, $5, $6, $7)")
             .bind(&instance_id)
             .bind(challenge_id)
             .bind(team_id)
             .bind(account_id)
             .bind(&generated_flag)
+            .bind(&cluster_ip)
             .bind(created_at)
             .bind(expires_at)
             .execute(&self.db_pool)
@@ -855,6 +860,9 @@ mod tests {
             _team_id: Option<&TeamId>,
             _account_id: &AccountId,
         ) -> Result<Option<String>, RepoError> {
+            Ok(None)
+        }
+        async fn get_instance_ip(&self, _instance_id: &str) -> Result<Option<String>, RepoError> {
             Ok(None)
         }
     }
