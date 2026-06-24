@@ -289,7 +289,7 @@ where
                                 fields: HashMap::new(),
                                 create_at: chrono::Utc::now().timestamp(),
                             };
-                            self.team_repo.save(new_team).await?;
+                            self.team_repo.save(new_team.clone()).await?;
                             new_team
                         }
                     };
