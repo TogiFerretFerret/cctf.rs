@@ -17,12 +17,12 @@ use k8s_openapi::api::core::v1::{
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use kube::{Api, Client};
 use sha2::{Digest, Sha256};
+use sqlx::Row;
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::fmt;
 use unic_langid::langid;
-use sqlx::Row;
 
 static_loader! {
     static LOCALES = {
@@ -729,10 +729,11 @@ impl InstancerService {
     }
     pub async fn init_repaer_schedules(&self) -> Result<(), ServiceError> {
         let now = chrono::Utc::now().timestamp();
-        let active: Vec<(String, i64)> = sqlx::query_as("SELECT id, expires_at FROM challenge_instances WHERE expires_at > $1")
-            .bind(now)
-            .fetch_all(&self.db_pool)
-            .await?;
+        let active: Vec<(String, i64)> =
+            sqlx::query_as("SELECT id, expires_at FROM challenge_instances WHERE expires_at > $1")
+                .bind(now)
+                .fetch_all(&self.db_pool)
+                .await?;
         for (id, expires_at) in active {
             let delay = std::cmp::max(0, expires_at - now) as u64;
             self.schedule_reap(id, delay);
@@ -1006,7 +1007,7 @@ mod tests {
         let board_acc = scoreboard_service_acc.get_scoreboard().await.unwrap();
         assert_eq!(board_acc[0].team_name, "Team A");
     }
-   #[test]
+    #[test]
     fn test_render_instanced_flag() {
         assert_eq!(
             render_instanced_flag("hc{chall_{{random}}}", "pwn-1", "abcde123"),
