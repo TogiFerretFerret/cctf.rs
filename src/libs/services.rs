@@ -690,7 +690,7 @@ impl InstancerService {
         duration_seconds: i64,
     ) -> Result<(), ServiceError> {
         let now = chrono::Utc::now().timestamp();
-        let rows_Affected = sqlx::query(
+        let rows_affected = sqlx::query(
             "UPDATE challenge_instances SET expires_at = $1 WHERE id = $2 AND expires_at > $3",
         )
         .bind(now + duration_seconds)
@@ -699,7 +699,7 @@ impl InstancerService {
         .execute(&self.db_pool)
         .await?
         .rows_affected();
-        if rows_Affected == 0 {
+        if rows_affected == 0 {
             return Err(ServiceError::InvalidRequest(
                 "ctf-instance-expired-or-not-found".to_string(),
             ));
