@@ -262,50 +262,47 @@ where
                     suffix += 1;
                 } // TODO: this probably can't cause time issues because.. I know big O, but... it's
                 // possible :shrug:
+                let mut new_account = Account {
+                    id: AccountId(uuid::Uuid::new_v4().to_string()),
+                    username: check_name,
+                    email: None,
+                    password_hash: None,
+                    role: AccountRole::Player,
+                    team_id: None,
+                    ctftime_id: Some(profile.id),
+                    fields: HashMap::new(),
+                    created_at: chrono::Utc::now().timestamp(),
+                };
                 let mut local_team_id = None;
                 if let Some(ref ctftime_team) = profile.team {
                     let team = match self.team_repo.find_by_ctftime_id(ctftime_team.id).await? {
                         Some(t) => t,
                         None => {
                             let team_id = TeamId(uuid::Uuid::new_v4().to_string());
-                            let dummy_captain = AccountId("system-oauth".to_string());
                             let new_team = Team {
                                 id: team_id.clone(),
                                 name: TeamName(ctftime_team.name.clone()),
                                 ctftime_id: Some(ctftime_team.id),
                                 invite_code: None,
-                                captain_id: dummy_captain,
-                                member_ids: Vec::new(),
+                                captain_id: new_account.id.clone(),
+                                member_ids: vec![new_account.id.clone()],
                                 fields: HashMap::new(),
                                 create_at: chrono::Utc::now().timestamp(),
                             };
-                            self.team_repo.save(new_team.clone()).await?;
+                            self.team_repo.save(new_team).await?;
                             new_team
                         }
                     };
-                    local_team_id = Some(team.id);
+                    local_team_id = Some(team.id.clone());
+                    new_account.team_id = Some(team.id.clone());
                 }
-                let new_account = Account {
-                    id: AccountId(uuid::Uuid::new_v4().to_string()),
-                    username: check_name,
-                    email: profile.email.map(|e| AccountEmail(e)),
-                    password_hash: None,
-                    role: AccountRole::Player,
-                    team_id: local_team_id.clone(),
-                    ctftime_id: Some(profile.id),
-                    fields: HashMap::new(),
-                    created_at: chrono::Utc::now().timestamp(),
-                };
                 self.account_repo.save(new_account.clone()).await?;
                 if let Some(t_id) = local_team_id {
                     if let Some(mut team) = self.team_repo.find_by_id(&t_id).await? {
-                        if team.captain_id.0 == "system-oauth" {
-                            // TODO: security issue if someone names
-                            // something system-oauth???
-                            team.captain_id = new_account.id.clone(); // this may mitigate?
+                        if !team.member_ids.contains(&new_account.id) {
+                            team.member_ids.push(new_account.id.clone());
+                            self.team_repo.update(team).await?;
                         }
-                        team.member_ids.push(new_account.id.clone());
-                        self.team_repo.update(team).await?;
                     }
                 }
                 new_account
