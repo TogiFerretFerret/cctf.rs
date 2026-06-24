@@ -76,6 +76,8 @@ pub trait InstanceRepo: Send + Sync {
         team_id: Option<&TeamId>,
         account_id: &AccountId,
     ) -> Result<Option<String>, RepoError>;
+
+    async fn get_instance_ip(&self, instance_id: &str) -> Result<Option<String>, RepoError>;
 }
 
 #[async_trait]
@@ -144,6 +146,10 @@ impl<T: InstanceRepo + ?Sized> InstanceRepo for std::sync::Arc<T> {
         (**self)
             .find_active_flag(challenge_id, team_id, account_id)
             .await
+    }
+
+    async fn get_instance_ip(&self, instance_id: &str) -> Result<Option<String>, RepoError> {
+        (**self).get_instance_ip(instance_id).await
     }
 }
 
