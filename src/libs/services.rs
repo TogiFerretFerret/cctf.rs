@@ -22,6 +22,7 @@ use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::fmt;
 use unic_langid::langid;
+use sqlx::Row;
 
 static_loader! {
     static LOCALES = {
@@ -707,12 +708,12 @@ impl InstancerService {
     }
     pub async fn reap_expired_instances(&self) -> Result<(), ServiceError> {
         let now = chrono::Utc::now().timestamp();
-        let expired = sqlx::query("SELECT id FROM challenge_instances WHERE expires_at <= $1")
+        let rows = sqlx::query("SELECT id FROM challenge_instances WHERE expires_at <= $1")
             .bind(now)
             .fetch_all(&self.db_pool)
             .await?;
-        for r in expired {
-            let id: String = r.try_get("id").map_err(RepoError::from)?;
+        for row in rows {
+            let id: String = row.try_get("id").map_err(RepoError::from)?;
             let _ = self.destroy_instances(&id).await;
         }
         Ok(())
@@ -726,15 +727,14 @@ impl InstancerService {
             }
         });
     }
-    pub async fn init_reaper_schedule(&self) -> Result<(), ServiceError> {
+    pub async fn init_repaer_schedules(&self) -> Result<(), ServiceError> {
         let now = chrono::Utc::now().timestamp();
-        let active: Vec<String, i64> =
-            sqlx::query_as("SELECT id, expires_at FROM challenge_instances WHERE expires_at > $1")
-                .bind(now)
-                .fetch_all(&self.db_pool)
-                .await?;
+        let active: Vec<(String, i64)> = sqlx::query_as("SELECT id, expires_at FROM challenge_instances WHERE expires_at > $1")
+            .bind(now)
+            .fetch_all(&self.db_pool)
+            .await?;
         for (id, expires_at) in active {
-            let delay = (expires_at - now).max(0) as u64;
+            let delay = std::cmp::max(0, expires_at - now) as u64;
             self.schedule_reap(id, delay);
         }
         self.reap_expired_instances().await?;

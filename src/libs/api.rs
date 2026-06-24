@@ -99,6 +99,7 @@ impl<T> MapLocalized<T> for Result<T, ServiceError> {
                 ServiceError::InvalidRequest(_) => StatusCode::BAD_REQUEST,
                 ServiceError::OAuth(_) => StatusCode::BAD_REQUEST,
                 ServiceError::Repo(_) => StatusCode::INTERNAL_SERVER_ERROR,
+                ServiceError::Kube(_) => StatusCode::INTERNAL_SERVER_ERROR,
             };
             LocalizedError {
                 status,
