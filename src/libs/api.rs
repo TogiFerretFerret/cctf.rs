@@ -1,4 +1,4 @@
-use crate::libs::repos::{AccountRepo, ChallengeRepo, SubmissionRepo, TeamRepo};
+use crate::libs::repos::{AccountRepo, ChallengeRepo, SubmissionRepo, TeamRepo, InstanceRepo};
 use crate::libs::services::{
     AuthService, OAuthService, ScoreboardService, ServiceError, SolveService,
 };
@@ -6,9 +6,9 @@ use crate::libs::types::accounts::AccountId;
 use crate::libs::types::teams::TeamId;
 use axum::{
     Json, Router,
-    extract::{FromRequestParts, Path, State},
+    extract::{FromRequestParts, Path, State, Host, Request},
     http::{HeaderMap, StatusCode, request::Parts},
-    response::IntoResponse,
+    response::{IntoResponse, Response},
     routing::{get, post},
 };
 use fluent_templates::{Loader, fluent_bundle::FluentValue, static_loader};
@@ -36,6 +36,7 @@ where
     pub solve_service: Arc<SolveService<C, S>>,
     pub scoreboard_service: Arc<ScoreboardService<T, C, S>>,
     pub jwt_secret: Vec<u8>,
+    pub http_client: reqwest::Client,
 }
 
 impl<A, T, C, S> Clone for AppState<A, T, C, S>
@@ -52,6 +53,7 @@ where
             solve_service: self.solve_service.clone(),
             scoreboard_service: self.scoreboard_service.clone(),
             jwt_secret: self.jwt_secret.clone(),
+            http_client: self.http_client.clone(),
         }
     }
 }
@@ -183,6 +185,29 @@ pub struct CallbackQuery {
 pub struct SubmitFlagPayload {
     pub team_id: Option<String>,
     pub flag: String,
+}
+
+fn extract_instance_id(host: &str) -> Option<String> {
+    let first_part = host.split('.').next()?;
+    if first_part.starts_with("inst-") {
+        Some(first_part.to_string())
+    } else {
+        None
+    }
+}
+
+pub async fn proxy_handler<A, T, C, S>(
+    State(state): State<AppState<A, T, C, S>>,
+    Host(host): Host,
+    req: Request,
+) -> Result<Response, StatusCode>
+where
+    A: AccountRepo + Send + Sync + 'static,
+    T: TeamRepo + Send + Sync + 'static,
+    C: ChallengeRepo + Send + Sync + 'static,
+    S: SubmissionRepo + Send + Sync + 'static,
+{
+    let instance_id = match extract_instance_id
 }
 
 pub async fn register<A, T, C, S>(
