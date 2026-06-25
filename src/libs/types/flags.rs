@@ -45,7 +45,7 @@ impl FlagValidator {
                         false
                     }
                 }
-            },
+            }
             FlagValidator::Multi(flags) => flags
                 .iter()
                 .any(|f| f.validator.is_match(submitted_flag, active_instanced_flag)),

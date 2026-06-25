@@ -23,5 +23,6 @@ tower = { version = "0.5.3", features = ["util"] }
 async-trait = "0.1.89"
 kube = { version = "4.0.0", features = ["runtime", "derive"] }
 k8s-openapi = { version = "0.28.0", features = ["latest"] }
+rhai = "1.25.1"
 
 
