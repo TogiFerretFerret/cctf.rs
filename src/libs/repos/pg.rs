@@ -23,6 +23,7 @@ impl PgStore {
                 ctftime_id INT UNIQUE, \
                 invite_code VARCHAR(255), \
                 captain_id VARCHAR(64) NOT NULL, \
+                bracket VARCHAR(100) DEFAULT 'Open' NOT NULL, \
                 fields JSONB NOT NULL DEFAULT '{}', \
                 created_at BIGINT NOT NULL \
              );",
@@ -101,6 +102,7 @@ impl PgStore {
         let ctftime_id: Option<i32> = row.get("ctftime_id");
         let invite_code: Option<String> = row.get("invite_code");
         let captain_id: String = row.get("captain_id");
+        let bracket: String = row.get("bracket");
         let fields_val: serde_json::Value = row.get("fields");
         let create_at: i64 = row.get("created_at");
 
@@ -124,6 +126,7 @@ impl PgStore {
             invite_code,
             captain_id: AccountId(captain_id),
             member_ids,
+            bracket,
             fields,
             create_at,
         })
@@ -375,14 +378,15 @@ impl TeamRepo for PgStore {
             serde_json::to_value(&team.fields).map_err(|e| RepoError::Internal(e.to_string()))?;
 
         sqlx::query(
-            "INSERT INTO teams (id, name, ctftime_id, invite_code, captain_id, fields, created_at) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7)",
+            "INSERT INTO teams (id, name, ctftime_id, invite_code, captain_id, bracket, fields, created_at) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
         )
         .bind(&team.id.0)
         .bind(&team.name.0)
         .bind(team.ctftime_id.map(|id| id as i32))
         .bind(team.invite_code)
         .bind(&team.captain_id.0)
+        .bind(&team.bracket)
         .bind(fields_val)
         .bind(team.create_at)
         .execute(&self.pool)
@@ -400,13 +404,14 @@ impl TeamRepo for PgStore {
         let fields_val =
             serde_json::to_value(&team.fields).map_err(|e| RepoError::Internal(e.to_string()))?;
         sqlx::query(
-            "UPDATE teams SET name = $1, ctftime_id = $2, invite_code = $3, captain_id = $4, fields = $5, created_at = $6 \
+            "UPDATE teams SET name = $1, ctftime_id = $2, invite_code = $3, captain_id = $4, bracket = $5, fields = $5, created_at = $6 \
              WHERE id = $7"
         )
         .bind(&team.name.0)
         .bind(team.ctftime_id.map(|id| id as i32))
         .bind(team.invite_code)
         .bind(&team.captain_id.0)
+        .bind(&team.bracket)
         .bind(fields_val)
         .bind(team.create_at)
         .bind(&team.id.0)

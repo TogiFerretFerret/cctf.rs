@@ -16,6 +16,7 @@ pub struct Team {
     pub invite_code: Option<String>,
     pub captain_id: AccountId,
     pub member_ids: Vec<AccountId>,
+    pub bracket: String,
     pub fields: HashMap<String, serde_json::Value>,
     pub create_at: i64,
 }
