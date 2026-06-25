@@ -190,7 +190,7 @@ impl InstancerService {
             }
         });
     }
-    pub async fn init_repaer_schedules(&self) -> Result<(), ServiceError> {
+    pub async fn init_reaper_schedules(&self) -> Result<(), ServiceError> {
         let now = chrono::Utc::now().timestamp();
         let active: Vec<(String, i64)> =
             sqlx::query_as("SELECT id, expires_at FROM challenge_instances WHERE expires_at > $1")
