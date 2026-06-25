@@ -1,4 +1,3 @@
-use super::ServiceError;
 use crate::libs::repos::{ChallengeRepo, SubmissionRepo, TeamRepo};
 use crate::libs::types::challenges::{Challenge, ScoringMode};
 use crate::libs::types::scoreboard::{
@@ -6,7 +5,11 @@ use crate::libs::types::scoreboard::{
 };
 use crate::libs::types::solves::Submission;
 use crate::libs::types::teams::TeamId;
+use crate::libs::types::flags::FlagValidator;
 use std::collections::HashMap;
+use std::collections::HashSet;
+use super::ServiceError;
+use super::solve::calculate_dynamic_points;
 
 pub struct ScoreboardService<T, C, S>
 where
@@ -32,40 +35,130 @@ where
         let challenges = self.challenge_repo.find_all().await?;
         let challenge_map: HashMap<String, &Challenge> =
             challenges.iter().map(|c| (c.id.clone(), c)).collect();
-        let mut solve_counts = HashMap::new();
+
+        // 1. Calculate solver counts for each challenge (unique teams/accounts that got at least one correct solve)
+        let mut challenge_solvers = HashMap::new();
         for sub in &submissions {
             if sub.is_correct {
-                *solve_counts.entry(sub.challenge_id.clone()).or_insert(0) += 1;
+                let solver_id = if sub.team_id.is_some() {
+                    sub.team_id.as_ref().unwrap().0.clone()
+                } else {
+                    sub.account_id.0.clone()
+                };
+                challenge_solvers
+                    .entry(sub.challenge_id.clone())
+                    .or_insert_with(HashSet::new)
+                    .insert(solver_id);
             }
         }
+
         let mut entries = Vec::new();
         for team in teams {
             let team_subs: Vec<&Submission> = submissions
                 .iter()
                 .filter(|s| s.team_id.as_ref() == Some(&team.id))
                 .collect();
+
             let mut points = 0;
             let mut last_solve_time = None;
             let mut solved_ids = Vec::new();
-            for sub in team_subs {
-                if sub.is_correct {
-                    if let Some(challenge) = challenge_map.get(&sub.challenge_id) {
-                        let challenge_points = match challenge.points.mode {
-                            ScoringMode::PointValue => {
-                                challenge.points.equation.parse::<u32>().unwrap_or(100)
-                            }
-                            ScoringMode::PointAttribution => sub.points,
-                        };
-                        points += challenge_points;
-                        solved_ids.push(sub.challenge_id.clone());
 
-                        last_solve_time = match last_solve_time {
-                            None => Some(sub.submitted_at),
-                            Some(t) => Some(t.max(sub.submitted_at)),
+            for challenge in &challenges {
+                let solve_count = challenge_solvers
+                    .get(&challenge.id)
+                    .map(|s| s.len())
+                    .unwrap_or(0) as u32;
+
+                let decayed_points = match challenge.points.mode {
+                    ScoringMode::PointValue => {
+                        challenge.points.equation.parse::<u32>().unwrap_or(100)
+                    }
+                    ScoringMode::PointAttribution => {
+                        challenge.points.equation.parse::<u32>().unwrap_or(100)
+                    }
+                    ScoringMode::DynamicDecay {
+                        initial,
+                        minimum,
+                        decay,
+                    } => calculate_dynamic_points(initial, minimum, decay, solve_count),
+                };
+
+                let mut challenge_scored = false;
+
+                if let FlagValidator::Multi(ref partials) = challenge.flag {
+                    for pf in partials {
+                        let pf_subs: Vec<&Submission> = team_subs
+                            .iter()
+                            .filter(|s| {
+                                s.challenge_id == challenge.id
+                                    && s.is_correct
+                                    && pf.validator
+                                        .is_match(&s.provided_flag, Some(&s.provided_flag))
+                            })
+                            .cloned()
+                            .collect();
+
+                        let scored_this_part = if challenge.team_consensus {
+                            !team.member_ids.is_empty()
+                                && team.member_ids.iter().all(|member_id| {
+                                    pf_subs.iter().any(|s| s.account_id == *member_id)
+                                })
+                        } else {
+                            !pf_subs.is_empty()
                         };
+
+                        if scored_this_part {
+                            let part_points =
+                                (decayed_points as f64 * pf.weight).round() as u32;
+                            points += part_points;
+                            challenge_scored = true;
+
+                            // Update last solve time
+                            let max_sub_time = pf_subs.iter().map(|s| s.submitted_at).max();
+                            if let Some(sub_time) = max_sub_time {
+                                last_solve_time = match last_solve_time {
+                                    None => Some(sub_time),
+                                    Some(t) => Some(t.max(sub_time)),
+                                };
+                            }
+                        }
+                    }
+                } else {
+                    let c_subs: Vec<&Submission> = team_subs
+                        .iter()
+                        .filter(|s| s.challenge_id == challenge.id && s.is_correct)
+                        .cloned()
+                        .collect();
+
+                    let scored_challenge = if challenge.team_consensus {
+                        !team.member_ids.is_empty()
+                            && team.member_ids.iter().all(|member_id| {
+                                c_subs.iter().any(|s| s.account_id == *member_id)
+                            })
+                    } else {
+                        !c_subs.is_empty()
+                    };
+
+                    if scored_challenge {
+                        points += decayed_points;
+                        challenge_scored = true;
+
+                        // Update last solve time
+                        let max_sub_time = c_subs.iter().map(|s| s.submitted_at).max();
+                        if let Some(sub_time) = max_sub_time {
+                            last_solve_time = match last_solve_time {
+                                None => Some(sub_time),
+                                Some(t) => Some(t.max(sub_time)),
+                            };
+                        }
                     }
                 }
+
+                if challenge_scored {
+                    solved_ids.push(challenge.id.clone());
+                }
             }
+
             entries.push(ScoreboardEntry {
                 team_id: team.id,
                 team_name: team.name.0,
@@ -75,6 +168,7 @@ where
                 rank: 0,
             });
         }
+
         if self.sort_by_accuracy {
             let get_accuracy = |team_id: &TeamId| -> f64 {
                 let subs: Vec<&Submission> = submissions
@@ -84,7 +178,8 @@ where
                 if subs.is_empty() {
                     1.0
                 } else {
-                    (subs.iter().filter(|s| s.is_correct).count() as f64) / (subs.len() as f64)
+                    (subs.iter().filter(|s| s.is_correct).count() as f64)
+                        / (subs.len() as f64)
                 }
             };
             entries.sort_by(|a, b| {

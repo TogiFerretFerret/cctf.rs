@@ -18,6 +18,7 @@ pub struct ChallengeTag(pub String);
 pub enum ScoringMode {
     PointValue,
     PointAttribution,
+    DynamicDecay { initial: u32, minimum: u32, decay: u32 },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -63,4 +64,6 @@ pub struct Challenge {
     pub files: Vec<ChallengeFile>,
     pub tags: Vec<ChallengeTag>,
     pub requirements: Vec<ChallengeRequirement>,
+    #[serde(default)]
+    pub team_consensus: bool,
 }

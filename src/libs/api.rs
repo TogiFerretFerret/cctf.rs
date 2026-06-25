@@ -33,7 +33,7 @@ where
 {
     pub auth_service: Arc<AuthService<A, T>>,
     pub oauth_service: Arc<OAuthService<A, T>>,
-    pub solve_service: Arc<SolveService<C, S>>,
+    pub solve_service: Arc<SolveService<C, S, T>>,
     pub scoreboard_service: Arc<ScoreboardService<T, C, S>>,
     pub jwt_secret: Vec<u8>,
     pub http_client: reqwest::Client,
@@ -611,6 +611,7 @@ mod tests {
             solve_service: Arc::new(SolveService {
                 challenge_repo: store.clone(),
                 submission_repo: store.clone(),
+                team_repo: store.clone(),
             }),
             scoreboard_service: Arc::new(ScoreboardService {
                 team_repo: store.clone(),

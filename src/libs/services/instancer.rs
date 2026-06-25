@@ -430,6 +430,7 @@ mod tests {
             files: Vec::new(),
             tags: Vec::new(),
             requirements: Vec::new(),
+            team_consensus: false,
         };
         ChallengeRepo::save(store.as_ref(), challenge)
             .await
@@ -437,6 +438,7 @@ mod tests {
         let solver = SolveService {
             challenge_repo: store.clone(),
             submission_repo: store.clone(),
+            team_repo: store.clone(),
         };
         solver
             .submit_flag(
@@ -522,5 +524,137 @@ mod tests {
             super::render_instanced_flag("raw_string", "pwn-3", "999"),
             "raw_string999"
         );
+    }
+
+    #[tokio::test]
+    async fn test_solve_consensus_and_decay() {
+        let store = Arc::new(TestStore::default());
+        let solver = SolveService {
+            challenge_repo: store.clone(),
+            submission_repo: store.clone(),
+            team_repo: store.clone(),
+        };
+
+        // 1. Create a Team with 2 members
+        let team_a = Team {
+            id: TeamId("team-a".to_string()),
+            name: TeamName("Team Consensus A".to_string()),
+            ctftime_id: None,
+            invite_code: None,
+            captain_id: AccountId("user-1".to_string()),
+            member_ids: vec![AccountId("user-1".to_string()), AccountId("user-2".to_string())],
+            fields: HashMap::new(),
+            create_at: 0,
+        };
+        TeamRepo::save(store.as_ref(), team_a).await.unwrap();
+
+        // 2. Create a Challenge with DynamicDecay (initial = 500, minimum = 100, decay = 5) and team_consensus = true
+        let challenge = Challenge {
+            id: "chall-consensus".to_string(),
+            title: crate::libs::types::challenges::ChallengeTitle("Consensus Chall".to_string()),
+            description: crate::libs::types::challenges::ChallengeDescription(
+                crate::libs::types::htmlstring::HtmlString("Desc".to_string()),
+            ),
+            category: crate::libs::types::challenges::ChallengeCategory("Web".to_string()),
+            points: crate::libs::types::challenges::ChallengePoints {
+                mode: ScoringMode::DynamicDecay { initial: 500, minimum: 100, decay: 5 },
+                equation: "500,100,5".to_string(),
+            },
+            flag: FlagValidator::Static("flag{consensus}".to_string()),
+            author: crate::libs::types::challenges::ChallengeAuthor {
+                id: "admin".to_string(),
+                username: "admin".to_string(),
+            },
+            hints: Vec::new(),
+            files: Vec::new(),
+            tags: Vec::new(),
+            requirements: Vec::new(),
+            team_consensus: true,
+        };
+        ChallengeRepo::save(store.as_ref(), challenge).await.unwrap();
+
+        // 3. User 1 submits flag. Correct, points should be awarded to the submission (500 pts).
+        let sub1 = solver.submit_flag(
+            "chall-consensus",
+            Some(TeamId("team-a".to_string())),
+            AccountId("user-1".to_string()),
+            "flag{consensus}",
+        ).await.unwrap();
+        assert_eq!(sub1.points, 500);
+
+        // 4. Let's check scoreboard. Since it's consensus and user-2 hasn't solved it yet, Team A points should be 0.
+        let scoreboard_service = ScoreboardService {
+            team_repo: store.clone(),
+            challenge_repo: store.clone(),
+            submission_repo: store.clone(),
+            sort_by_accuracy: false,
+        };
+        let board = scoreboard_service.get_scoreboard().await.unwrap();
+        assert_eq!(board[0].points, 0);
+
+        // 5. User 2 submits flag. Correct, points should be awarded.
+        let sub2 = solver.submit_flag(
+            "chall-consensus",
+            Some(TeamId("team-a".to_string())),
+            AccountId("user-2".to_string()),
+            "flag{consensus}",
+        ).await.unwrap();
+        assert_eq!(sub2.points, 500);
+
+        // 6. Check scoreboard again. Since user-1 and user-2 both solved it, Team A points should be 500.
+        let board = scoreboard_service.get_scoreboard().await.unwrap();
+        assert_eq!(board[0].points, 500);
+
+        // 7. Let's test Multi-Flag / Partials on a separate challenge
+        use crate::libs::types::flags::PartialFlag;
+        let partial_challenge = Challenge {
+            id: "chall-partial".to_string(),
+            title: crate::libs::types::challenges::ChallengeTitle("Partial Chall".to_string()),
+            description: crate::libs::types::challenges::ChallengeDescription(
+                crate::libs::types::htmlstring::HtmlString("Desc".to_string()),
+            ),
+            category: crate::libs::types::challenges::ChallengeCategory("Web".to_string()),
+            points: crate::libs::types::challenges::ChallengePoints {
+                mode: ScoringMode::PointValue,
+                equation: "200".to_string(),
+            },
+            flag: FlagValidator::Multi(vec![
+                PartialFlag { id: "part-1".to_string(), validator: FlagValidator::Static("flag{part1}".to_string()), weight: 0.25 },
+                PartialFlag { id: "part-2".to_string(), validator: FlagValidator::Static("flag{part2}".to_string()), weight: 0.75 },
+            ]),
+            author: crate::libs::types::challenges::ChallengeAuthor {
+                id: "admin".to_string(),
+                username: "admin".to_string(),
+            },
+            hints: Vec::new(),
+            files: Vec::new(),
+            tags: Vec::new(),
+            requirements: Vec::new(),
+            team_consensus: false,
+        };
+        ChallengeRepo::save(store.as_ref(), partial_challenge).await.unwrap();
+
+        // Submit part 1
+        let psub1 = solver.submit_flag(
+            "chall-partial",
+            Some(TeamId("team-a".to_string())),
+            AccountId("user-1".to_string()),
+            "flag{part1}",
+        ).await.unwrap();
+        // 200 * 0.25 = 50 points
+        assert_eq!(psub1.points, 50);
+
+        // Scoreboard should show 500 + 50 = 550 points
+        let board = scoreboard_service.get_scoreboard().await.unwrap();
+        assert_eq!(board[0].points, 550);
+
+        // Attempting to submit part 1 again should error
+        let psub1_dup = solver.submit_flag(
+            "chall-partial",
+            Some(TeamId("team-a".to_string())),
+            AccountId("user-1".to_string()),
+            "flag{part1}",
+        ).await;
+        assert!(psub1_dup.is_err());
     }
 }

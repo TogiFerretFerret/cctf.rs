@@ -1,11 +1,11 @@
-use super::RepoError;
-use super::traits::{AccountRepo, ChallengeRepo, InstanceRepo, SubmissionRepo, TeamRepo};
 use crate::libs::types::accounts::{Account, AccountEmail, AccountId, AccountName, AccountRole};
 use crate::libs::types::challenges::{Challenge, ScoringMode};
 use crate::libs::types::solves::Submission;
 use crate::libs::types::teams::{Team, TeamId, TeamName};
 use async_trait::async_trait;
 use sqlx::Row;
+use super::RepoError;
+use super::traits::{AccountRepo, TeamRepo, InstanceRepo, ChallengeRepo, SubmissionRepo};
 
 pub struct PgStore {
     pool: sqlx::PgPool,
@@ -58,7 +58,8 @@ impl PgStore {
                 hints JSONB NOT NULL DEFAULT '[]', \
                 files JSONB NOT NULL DEFAULT '[]', \
                 tags JSONB NOT NULL DEFAULT '[]', \
-                requirements JSONB NOT NULL DEFAULT '[]' \
+                requirements JSONB NOT NULL DEFAULT '[]', \
+                team_consensus BOOLEAN NOT NULL DEFAULT FALSE \
              );",
         )
         .execute(&self.pool)
@@ -172,8 +173,21 @@ fn map_challenge(row: &sqlx::postgres::PgRow) -> Result<Challenge, sqlx::Error> 
     let files_val: serde_json::Value = row.get("files");
     let tags_val: serde_json::Value = row.get("tags");
     let requirements_val: serde_json::Value = row.get("requirements");
+    let team_consensus: bool = row.try_get("team_consensus").unwrap_or(false);
+
     let mode = match points_mode.as_str() {
         "PointAttribution" => ScoringMode::PointAttribution,
+        "DynamicDecay" => {
+            let parts: Vec<&str> = points_equation.split(',').collect();
+            if parts.len() == 3 {
+                let initial = parts[0].parse::<u32>().unwrap_or(500);
+                let minimum = parts[1].parse::<u32>().unwrap_or(100);
+                let decay = parts[2].parse::<u32>().unwrap_or(10);
+                ScoringMode::DynamicDecay { initial, minimum, decay }
+            } else {
+                ScoringMode::DynamicDecay { initial: 500, minimum: 100, decay: 10 }
+            }
+        }
         _ => ScoringMode::PointValue,
     };
     let flag = serde_json::from_value(flag_val).map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
@@ -202,6 +216,7 @@ fn map_challenge(row: &sqlx::postgres::PgRow) -> Result<Challenge, sqlx::Error> 
         files,
         tags,
         requirements,
+        team_consensus,
     })
 }
 
@@ -482,6 +497,13 @@ impl ChallengeRepo for PgStore {
         let mode_str = match challenge.points.mode {
             ScoringMode::PointValue => "PointValue",
             ScoringMode::PointAttribution => "PointAttribution",
+            ScoringMode::DynamicDecay { .. } => "DynamicDecay",
+        };
+        let eq_str = match challenge.points.mode {
+            ScoringMode::DynamicDecay { initial, minimum, decay } => {
+                format!("{},{},{}", initial, minimum, decay)
+            }
+            _ => challenge.points.equation.clone(),
         };
         let flag_val = serde_json::to_value(&challenge.flag)
             .map_err(|e| RepoError::Internal(e.to_string()))?;
@@ -494,15 +516,15 @@ impl ChallengeRepo for PgStore {
         let requirements_val = serde_json::to_value(&challenge.requirements)
             .map_err(|e| RepoError::Internal(e.to_string()))?;
         sqlx::query(
-            "INSERT INTO challenges (id, title, description, category, points_mode, points_equation, flag, author_id, author_username, hints, files, tags, requirements) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)"
+            "INSERT INTO challenges (id, title, description, category, points_mode, points_equation, flag, author_id, author_username, hints, files, tags, requirements, team_consensus) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)"
         )
         .bind(&challenge.id)
         .bind(&challenge.title.0)
         .bind(&challenge.description.0.0)
         .bind(&challenge.category.0)
         .bind(mode_str)
-        .bind(&challenge.points.equation)
+        .bind(eq_str)
         .bind(flag_val)
         .bind(&challenge.author.id)
         .bind(&challenge.author.username)
@@ -510,6 +532,7 @@ impl ChallengeRepo for PgStore {
         .bind(files_val)
         .bind(tags_val)
         .bind(requirements_val)
+        .bind(challenge.team_consensus)
         .execute(&self.pool)
         .await?;
         Ok(())
