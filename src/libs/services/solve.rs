@@ -1,3 +1,4 @@
+use super::ServiceError;
 use crate::libs::repos::{ChallengeRepo, SubmissionRepo, TeamRepo};
 use crate::libs::types::accounts::AccountId;
 use crate::libs::types::challenges::ScoringMode;
@@ -6,7 +7,6 @@ use crate::libs::types::solves::{Submission, SubmissionId};
 use crate::libs::types::teams::TeamId;
 use std::collections::HashMap;
 use std::collections::HashSet;
-use super::ServiceError;
 
 pub fn calculate_dynamic_points(initial: u32, minimum: u32, decay: u32, solve_count: u32) -> u32 {
     if solve_count <= 1 {
@@ -75,9 +75,7 @@ where
             let subs = self.submission_repo.find_all().await?;
             subs.into_iter()
                 .filter(|s| {
-                    s.challenge_id == challenge_id
-                        && s.account_id == account_id
-                        && s.is_correct
+                    s.challenge_id == challenge_id && s.account_id == account_id && s.is_correct
                 })
                 .collect::<Vec<_>>()
         };
@@ -135,7 +133,8 @@ where
                 if let Ok(Some(team)) = self.team_repo.find_by_id(&t_id).await {
                     let reached_consensus = if challenge.team_consensus {
                         !team.member_ids.is_empty()
-                            && team.member_ids
+                            && team
+                                .member_ids
                                 .iter()
                                 .all(|member_id| user_ids.contains(member_id))
                     } else {
@@ -185,9 +184,7 @@ where
 
         let points_awarded = if is_correct {
             let base_points = match challenge.points.mode {
-                ScoringMode::PointValue => {
-                    challenge.points.equation.parse::<u32>().unwrap_or(100)
-                }
+                ScoringMode::PointValue => challenge.points.equation.parse::<u32>().unwrap_or(100),
                 ScoringMode::PointAttribution => {
                     challenge.points.equation.parse::<u32>().unwrap_or(100)
                 }
@@ -195,12 +192,7 @@ where
                     initial,
                     minimum,
                     decay,
-                } => calculate_dynamic_points(
-                    initial,
-                    minimum,
-                    decay,
-                    next_solve_count.max(1),
-                ),
+                } => calculate_dynamic_points(initial, minimum, decay, next_solve_count.max(1)),
             };
             if let Some(ref matched_pf) = matched_partial {
                 (base_points as f64 * matched_pf.weight).round() as u32

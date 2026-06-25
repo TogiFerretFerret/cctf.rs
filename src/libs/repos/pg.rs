@@ -1,11 +1,11 @@
+use super::RepoError;
+use super::traits::{AccountRepo, ChallengeRepo, InstanceRepo, SubmissionRepo, TeamRepo};
 use crate::libs::types::accounts::{Account, AccountEmail, AccountId, AccountName, AccountRole};
 use crate::libs::types::challenges::{Challenge, ScoringMode};
 use crate::libs::types::solves::Submission;
 use crate::libs::types::teams::{Team, TeamId, TeamName};
 use async_trait::async_trait;
 use sqlx::Row;
-use super::RepoError;
-use super::traits::{AccountRepo, TeamRepo, InstanceRepo, ChallengeRepo, SubmissionRepo};
 
 pub struct PgStore {
     pool: sqlx::PgPool,
@@ -183,9 +183,17 @@ fn map_challenge(row: &sqlx::postgres::PgRow) -> Result<Challenge, sqlx::Error> 
                 let initial = parts[0].parse::<u32>().unwrap_or(500);
                 let minimum = parts[1].parse::<u32>().unwrap_or(100);
                 let decay = parts[2].parse::<u32>().unwrap_or(10);
-                ScoringMode::DynamicDecay { initial, minimum, decay }
+                ScoringMode::DynamicDecay {
+                    initial,
+                    minimum,
+                    decay,
+                }
             } else {
-                ScoringMode::DynamicDecay { initial: 500, minimum: 100, decay: 10 }
+                ScoringMode::DynamicDecay {
+                    initial: 500,
+                    minimum: 100,
+                    decay: 10,
+                }
             }
         }
         _ => ScoringMode::PointValue,
@@ -500,7 +508,11 @@ impl ChallengeRepo for PgStore {
             ScoringMode::DynamicDecay { .. } => "DynamicDecay",
         };
         let eq_str = match challenge.points.mode {
-            ScoringMode::DynamicDecay { initial, minimum, decay } => {
+            ScoringMode::DynamicDecay {
+                initial,
+                minimum,
+                decay,
+            } => {
                 format!("{},{},{}", initial, minimum, decay)
             }
             _ => challenge.points.equation.clone(),

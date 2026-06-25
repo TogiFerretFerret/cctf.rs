@@ -1,15 +1,15 @@
+use super::ServiceError;
+use super::solve::calculate_dynamic_points;
 use crate::libs::repos::{ChallengeRepo, SubmissionRepo, TeamRepo};
 use crate::libs::types::challenges::{Challenge, ScoringMode};
+use crate::libs::types::flags::FlagValidator;
 use crate::libs::types::scoreboard::{
     CtfTimeScoreboardExport, CtfTimeStandingsEntry, CtfTimeTaskStats, ScoreboardEntry,
 };
 use crate::libs::types::solves::Submission;
 use crate::libs::types::teams::TeamId;
-use crate::libs::types::flags::FlagValidator;
 use std::collections::HashMap;
 use std::collections::HashSet;
-use super::ServiceError;
-use super::solve::calculate_dynamic_points;
 
 pub struct ScoreboardService<T, C, S>
 where
@@ -92,7 +92,8 @@ where
                             .filter(|s| {
                                 s.challenge_id == challenge.id
                                     && s.is_correct
-                                    && pf.validator
+                                    && pf
+                                        .validator
                                         .is_match(&s.provided_flag, Some(&s.provided_flag))
                             })
                             .cloned()
@@ -108,8 +109,7 @@ where
                         };
 
                         if scored_this_part {
-                            let part_points =
-                                (decayed_points as f64 * pf.weight).round() as u32;
+                            let part_points = (decayed_points as f64 * pf.weight).round() as u32;
                             points += part_points;
                             challenge_scored = true;
 
@@ -132,9 +132,10 @@ where
 
                     let scored_challenge = if challenge.team_consensus {
                         !team.member_ids.is_empty()
-                            && team.member_ids.iter().all(|member_id| {
-                                c_subs.iter().any(|s| s.account_id == *member_id)
-                            })
+                            && team
+                                .member_ids
+                                .iter()
+                                .all(|member_id| c_subs.iter().any(|s| s.account_id == *member_id))
                     } else {
                         !c_subs.is_empty()
                     };
@@ -178,8 +179,7 @@ where
                 if subs.is_empty() {
                     1.0
                 } else {
-                    (subs.iter().filter(|s| s.is_correct).count() as f64)
-                        / (subs.len() as f64)
+                    (subs.iter().filter(|s| s.is_correct).count() as f64) / (subs.len() as f64)
                 }
             };
             entries.sort_by(|a, b| {

@@ -18,7 +18,11 @@ pub struct ChallengeTag(pub String);
 pub enum ScoringMode {
     PointValue,
     PointAttribution,
-    DynamicDecay { initial: u32, minimum: u32, decay: u32 },
+    DynamicDecay {
+        initial: u32,
+        minimum: u32,
+        decay: u32,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
