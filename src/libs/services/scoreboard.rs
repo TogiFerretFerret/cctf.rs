@@ -30,7 +30,10 @@ where
     C: ChallengeRepo,
     S: SubmissionRepo,
 {
-    pub async fn get_scoreboard(&self) -> Result<Vec<ScoreboardEntry>, ServiceError> {
+    pub async fn get_scoreboard(
+        &self,
+        filter_bracket: Option<&str>,
+    ) -> Result<Vec<ScoreboardEntry>, ServiceError> {
         let teams = self.team_repo.find_all().await?;
         let submissions = self.submission_repo.find_all().await?;
         let submissions = if let Some(freeze) = self.freeze_time {
