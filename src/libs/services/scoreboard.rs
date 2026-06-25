@@ -21,6 +21,7 @@ where
     pub challenge_repo: C,
     pub submission_repo: S,
     pub sort_by_accuracy: bool,
+    pub freeze_time: Option<i64>,
 }
 
 impl<T, C, S> ScoreboardService<T, C, S>
@@ -32,10 +33,18 @@ where
     pub async fn get_scoreboard(&self) -> Result<Vec<ScoreboardEntry>, ServiceError> {
         let teams = self.team_repo.find_all().await?;
         let submissions = self.submission_repo.find_all().await?;
+        let submissions = if let Some(freeze) = self.freeze_time {
+            submissions
+                .into_iter()
+                .filter(|s| s.submitted_at < freeze)
+                .collect::<Vec<_>>()
+        } else {
+            submissions
+        };
         let challenges = self.challenge_repo.find_all().await?;
         let challenge_map: HashMap<String, &Challenge> =
             challenges.iter().map(|c| (c.id.clone(), c)).collect();
-
+        
         // 1. Calculate solver counts for each challenge (unique teams/accounts that got at least one correct solve)
         let mut challenge_solvers = HashMap::new();
         for sub in &submissions {
