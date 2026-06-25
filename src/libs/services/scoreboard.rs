@@ -34,7 +34,10 @@ where
         &self,
         filter_bracket: Option<&str>,
     ) -> Result<Vec<ScoreboardEntry>, ServiceError> {
-        let teams = self.team_repo.find_all().await?;
+        let mut teams = self.team_repo.find_all().await?;
+        if let Some(bracket) = filter_bracket {
+            teams.retain(|team| team.bracket == bracket);
+        }
         let submissions = self.submission_repo.find_all().await?;
         let submissions = if let Some(freeze) = self.freeze_time {
             submissions
