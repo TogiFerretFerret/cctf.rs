@@ -32,4 +32,8 @@ kube-client-init-failed = Failed to initialize Kubernetes client: {$reason}
 # Rate limit errors
 ctf-rate-limit-exceeded = Rate limit exceeded. Please try again later.
 
-
+# Team join and Invite errors
+ctf-team-not-found = Team not found
+ctf-not-captain = Only the captain can generate invite tokens
+ctf-invalid-invite-token = Invalid or expires invite token
+ctf-bracket-domain-restricted = Your email domain is not permitted to join this division

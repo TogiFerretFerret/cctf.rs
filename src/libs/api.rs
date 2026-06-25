@@ -13,7 +13,9 @@ use axum::{
     routing::{get, post},
 };
 use fluent_templates::{Loader, fluent_bundle::FluentValue, static_loader};
+use hmac::{Hmac, Mac};
 use serde::Deserialize;
+use sha2::Sha256;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -192,10 +194,59 @@ pub struct SubmitFlagPayload {
     pub flag: String,
 }
 
+#[derive(Deserialize)]
+pub struct CreateInvitePayload {
+    pub team_id: String,
+    pub lifespan_hours: Option<i64>,
+}
+
+#[derive(Deserialize)]
+pub struct JoinTeamPayload {
+    pub token: String,
+}
+
 fn extract_instance_id(host: &str) -> Option<String> {
     let first_part = host.split('.').next()?;
     if first_part.starts_with("inst-") {
         Some(first_part.to_string())
+    } else {
+        None
+    }
+}
+
+fn generate_invite_token(team_id: &str, expires_at: i64, secret: &[u8]) -> String {
+    let message = format!("{}:{}", team_id, expires_at);
+    type HmacSha256 = Hmac<Sha256>;
+    let mut mac = HmacSha256::new_from_sice(secret).expect("HMAC can take key of any size");
+    // okay because this shouldn't ever end up getting shown to user in any way possible.
+    mac.update(message.as_bytes());
+    let signature = hex::encode(mac.finalize().into_bytes());
+    format!("{}:{}:{}", team_id, expires_at, signature)
+}
+
+fn verify_invite_token(token: &str, secret: &[u8]) -> Option<(String, i64)> {
+    let parts: Vec<&str> = token.split(':').collect();
+    if parts.len() != 3 {
+        return None;
+    }
+    let team_id = parts[0];
+    let expires_at_str = parts[1];
+    let signature_hex = parts[2];
+    let expires_at = expires_at_str.parse::<i64>().ok()?;
+    let now = chrono::Utc::now().timestamp();
+    if now > expires_at {
+        return None;
+    }
+    let mmessage = format!("{}:{}", team_id, expires_at);
+    type HmacSha256 = Hmac<Sha256>;
+    let mut mac = HmacSha256::new_from_slice(secret).ok()?;
+    mac.update(message.as_bytes());
+    let expected_signature = mac.finalize().into_bytes();
+    let provided_signature = hex::decode(signature_hex).ok()?;
+    if ring::constant_time::verify_slices_are_equal(&expected_signature, &provided_signature)
+        .is_ok()
+    {
+        Some((team_id.to_string(), expires_at))
     } else {
         None
     }
@@ -467,6 +518,86 @@ where
         Ok(export) => Json(export).into_response(),
         Err(err) => err.into_response(),
     }
+}
+
+pub async fn create_invite<A, T, C, S>(
+    State(state): State<AppState<A, T, C, S>>,
+    user: AuthenticatedUser,
+    lang: PreferredLang,
+    Json(payload): Json<CreateInvitePayload>,
+) -> axum::response::Response
+where
+    A: AccountRepo + Send + Sync + 'static,
+    T: TeamRepo + Send + Sync + 'static,
+    C: ChallengeRepo + Send + Sync + 'static,
+    S: SubmissionRepo + Send + Sync + 'static,
+{
+    let team = match state
+        .auth_service
+        .team_repo
+        .find_by_id(&TeamId(payload.team_id.clone()))
+        .await
+    {
+        Ok(Some(t)) => t,
+        _ => {
+            return LocalizedError {
+                status: StatusCode::NOT_FOUND,
+                message: LOCALES.lookup(&lang.0.parse().unwrap(), "ctf-team-not-found"),
+            }
+            .into_response();
+        }
+    };
+    if team.captain_id != user.account_id {
+        return LocalizedError {
+            status: StatusCode::FORBIDDEN,
+            message: LOCALES.lookup(&lang.0.parse().unwrap(), "ctf-not-captain"),
+        }
+        .into_response();
+    }
+    let lifespan = payload.lifespan_hours.unwrap_or(24); // TODO: is this safe?
+    let expires_at = chrono::Utc::now().timestamp() + (lifespan * 3600); // TODO: how fine
+    // control though?
+    let token = generate_invite_token(&team.id.0, expires_at, &state.jwt_secret);
+    Json(serde_json::json!({"token":token, "expires_at":expires_at})).into_response()
+}
+
+pub async fn join_team<A, T, C, S>(
+    State(state): State<AppState<A, T, C, S>>,
+    user: AuthenticatedUser,
+    lang: PreferredLang,
+    Json(payload): Json<JoinTeamPayload>,
+) -> axum::response::Response
+where
+    A: AccountRepo + Send + Sync + 'static,
+    T: TeamRepo + Send + Sync + 'static,
+    C: ChallengeRepo + Send + Sync + 'static,
+    S: SubmissionRepo + Send + Sync + 'static,
+{
+    let (team_id_str, _) = match verify_invite_token(&payload.token, &state.jwt_secret) {
+        Some(val) => val,
+        None => {
+            return LocalizedError {
+                status: StatusCode::BAD_REQUEST,
+                message: LOCALES.lookup(&lang.0.parse().unwrap(), "ctf-invalid-invite-token"),
+            }
+            .into_response();
+        }
+    };
+    let mut team = match state
+        .auth_service
+        .team_repo
+        .find_by_id(&TeamId(team_id_str))
+        .await
+    {
+        Ok(Some(t)) => t,
+        _ => {
+            return LocalizedError {
+                status: StatusCode::NOT_FOUND,
+                message: LOCALES.lookup(&lang.0.parse().unwrap(), "ctf-team-not-found"),
+            }
+            .into_response();
+        }
+    };
 }
 
 pub fn create_router<A, T, C, S>(state: AppState<A, T, C, S>) -> Router
