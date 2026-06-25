@@ -446,6 +446,7 @@ mod tests {
                 Some(TeamId("team-a".to_string())),
                 AccountId("user-1".to_string()),
                 "flag{test}",
+                "127.0.0.1",
             )
             .await
             .unwrap();
@@ -455,6 +456,7 @@ mod tests {
                 Some(TeamId("team-b".to_string())),
                 AccountId("user-2".to_string()),
                 "wrong-flag",
+                "127.0.0.1",
             )
             .await;
         assert!(fail.is_err());
@@ -464,6 +466,7 @@ mod tests {
                 Some(TeamId("team-b".to_string())),
                 AccountId("user-2".to_string()),
                 "flag{test}",
+                "127.0.0.1",
             )
             .await
             .unwrap();
@@ -585,6 +588,7 @@ mod tests {
                 Some(TeamId("team-a".to_string())),
                 AccountId("user-1".to_string()),
                 "flag{consensus}",
+                "127.0.0.1",
             )
             .await
             .unwrap();
@@ -604,6 +608,7 @@ mod tests {
                 Some(TeamId("team-a".to_string())),
                 AccountId("user-2".to_string()),
                 "flag{consensus}",
+                "127.0.0.1",
             )
             .await
             .unwrap();
@@ -653,6 +658,7 @@ mod tests {
                 Some(TeamId("team-a".to_string())),
                 AccountId("user-1".to_string()),
                 "flag{part1}",
+                "127.0.0.1",
             )
             .await
             .unwrap();
@@ -665,6 +671,7 @@ mod tests {
                 Some(TeamId("team-a".to_string())),
                 AccountId("user-1".to_string()),
                 "flag{part1}",
+                "127.0.0.1",
             )
             .await;
         assert!(psub1_dup.is_err());
@@ -716,6 +723,7 @@ mod tests {
                 None,
                 AccountId("user-1".to_string()),
                 "12345abc",
+                "127.0.0.1",
             )
             .await
             .unwrap();
@@ -727,6 +735,7 @@ mod tests {
                 None,
                 AccountId("user-1".to_string()),
                 "123abc",
+                "127.0.0.1",
             )
             .await;
         assert!(sub_fail_len.is_err());
@@ -737,6 +746,7 @@ mod tests {
                 None,
                 AccountId("user-1".to_string()),
                 "12345678",
+                "127.0.0.1",
             )
             .await;
         assert!(sub_fail_suffix.is_err());

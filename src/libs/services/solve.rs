@@ -42,6 +42,7 @@ where
         team_id: Option<TeamId>,
         account_id: AccountId,
         submitted_flag: &str,
+        submitted_ip: &str,
     ) -> Result<Submission, ServiceError> {
         let challenge = self
             .challenge_repo
@@ -212,6 +213,7 @@ where
             provided_flag: submitted_flag.to_string(),
             is_correct,
             submitted_at: chrono::Utc::now().timestamp(),
+            submitted_ip: submitted_ip.to_string(),
         };
 
         self.submission_repo.save(submission.clone()).await?;

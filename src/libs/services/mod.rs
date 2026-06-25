@@ -19,6 +19,7 @@ pub enum ServiceError {
     InvalidRequest(String),
     Unauthorized,
     Kube(String),
+    RateLimitExceeded,
 }
 
 impl From<RepoError> for ServiceError {
@@ -46,6 +47,7 @@ impl ServiceError {
             ServiceError::Repo(err) => err.localize(lang),
             ServiceError::Unauthorized => LOCALES.lookup(&lang_id, "auth-not-logged-in"),
             ServiceError::InvalidRequest(key) => LOCALES.lookup(&lang_id, key),
+            ServiceError::RateLimitExceeded => LOCALES.lookup(&lang_id, "ctf-rate-limit-exceeded"),
             ServiceError::OAuth(reason) => {
                 let args = HashMap::from([(
                     Cow::Borrowed("reason"),

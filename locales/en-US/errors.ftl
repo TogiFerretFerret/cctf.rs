@@ -29,4 +29,7 @@ auth-invalid-token = Invalid token: {$reason}
 kube-api-error = Kubernetes operation failed: {$reason}
 kube-client-init-failed = Failed to initialize Kubernetes client: {$reason}
 
+# Rate limit errors
+ctf-rate-limit-exceeded = Rate limit exceeded. Please try again later.
+
 

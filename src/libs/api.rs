@@ -6,7 +6,7 @@ use crate::libs::types::accounts::AccountId;
 use crate::libs::types::teams::TeamId;
 use axum::{
     Json, Router,
-    extract::{FromRequestParts, Path, Request, State},
+    extract::{ConnectInfo, FromRequestParts, Path, Request, State},
     http::{HeaderMap, StatusCode, request::Parts},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -16,6 +16,8 @@ use serde::Deserialize;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::net::SocketAddr;
+use ::async_trait::async_trait;
 
 static_loader! {
     static LOCALES = {
@@ -37,6 +39,7 @@ where
     pub scoreboard_service: Arc<ScoreboardService<T, C, S>>,
     pub jwt_secret: Vec<u8>,
     pub http_client: reqwest::Client,
+    pub rate_limiter: Arc<RateLimiter>,
 }
 
 impl<A, T, C, S> Clone for AppState<A, T, C, S>
@@ -54,6 +57,7 @@ where
             scoreboard_service: self.scoreboard_service.clone(),
             jwt_secret: self.jwt_secret.clone(),
             http_client: self.http_client.clone(),
+            rate_limiter: self.rate_limiter.clone(),
         }
     }
 }
@@ -102,6 +106,7 @@ impl<T> MapLocalized<T> for Result<T, ServiceError> {
                 ServiceError::OAuth(_) => StatusCode::BAD_REQUEST,
                 ServiceError::Repo(_) => StatusCode::INTERNAL_SERVER_ERROR,
                 ServiceError::Kube(_) => StatusCode::INTERNAL_SERVER_ERROR,
+                ServiceError::RateLimitExceeded => StatusCode::TOO_MANY_REQUESTS,
             };
             LocalizedError {
                 status,
@@ -262,6 +267,7 @@ where
 
 pub async fn register<A, T, C, S>(
     State(state): State<AppState<A, T, C, S>>,
+    ClientIp(ip): ClientIp,
     lang: PreferredLang,
     Json(payload): Json<RegisterPayload>,
 ) -> axum::response::Response
@@ -271,6 +277,13 @@ where
     C: ChallengeRepo + Send + Sync + 'static,
     S: SubmissionRepo + Send + Sync + 'static,
 {
+    if !state.rate_limiter.check_limit(&format!("auth-ip:{}", ip), 5, 60).await {
+        return LocalizedError {
+            status: StatusCode::TOO_MANY_REQUESTS,
+            message: ServiceError::RateLimitExceeded.localize(&lang.0),
+        }.into_response();
+    }
+
     let res = state
         .auth_service
         .register(
@@ -289,6 +302,7 @@ where
 
 pub async fn login<A, T, C, S>(
     State(state): State<AppState<A, T, C, S>>,
+    ClientIp(ip): ClientIp,
     lang: PreferredLang,
     Json(payload): Json<LoginPayload>,
 ) -> axum::response::Response
@@ -298,6 +312,13 @@ where
     C: ChallengeRepo + Send + Sync + 'static,
     S: SubmissionRepo + Send + Sync + 'static,
 {
+    if !state.rate_limiter.check_limit(&format!("auth-ip:{}", ip), 5, 60).await {
+        return LocalizedError {
+            status: StatusCode::TOO_MANY_REQUESTS,
+            message: ServiceError::RateLimitExceeded.localize(&lang.0),
+        }.into_response();
+    }
+
     let res = state
         .auth_service
         .login(&payload.username, &payload.password)
@@ -347,6 +368,7 @@ where
 pub async fn submit_flag<A, T, C, S>(
     State(state): State<AppState<A, T, C, S>>,
     user: AuthenticatedUser,
+    ClientIp(ip): ClientIp,
     lang: PreferredLang,
     Path(challenge_id): Path<String>,
     Json(payload): Json<SubmitFlagPayload>,
@@ -357,10 +379,25 @@ where
     C: ChallengeRepo + Send + Sync + 'static,
     S: SubmissionRepo + Send + Sync + 'static,
 {
+    // Limit flag attempts to 10 per 60 seconds per IP
+    if !state.rate_limiter.check_limit(&format!("sub-ip:{}", ip), 10, 60).await {
+        return LocalizedError {
+            status: StatusCode::TOO_MANY_REQUESTS,
+            message: ServiceError::RateLimitExceeded.localize(&lang.0),
+        }.into_response();
+    }
+    // Limit flag attempts to 10 per 60 seconds per account
+    if !state.rate_limiter.check_limit(&format!("sub-acc:{}", user.account_id.0), 10, 60).await {
+        return LocalizedError {
+            status: StatusCode::TOO_MANY_REQUESTS,
+            message: ServiceError::RateLimitExceeded.localize(&lang.0),
+        }.into_response();
+    }
+
     let team_id = payload.team_id.map(TeamId);
     let res = state
         .solve_service
-        .submit_flag(&challenge_id, team_id, user.account_id, &payload.flag)
+        .submit_flag(&challenge_id, team_id, user.account_id, &payload.flag, &ip)
         .await
         .map_localized(&lang.0);
 
@@ -440,6 +477,74 @@ where
         .with_state(state)
 }
 
+pub struct ClientIp(pub String);
+
+impl<S> FromRequestParts<S> for ClientIp
+where
+    S: Send + Sync,
+{
+    type Rejection = std::convert::Infallible;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        // 1. Check X-Forwarded-For header
+        if let Some(ip) = parts
+            .headers
+            .get("x-forwarded-for")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.split(',').next())
+            .map(|s| s.trim().to_string())
+        {
+            return Ok(ClientIp(ip));
+        }
+
+        // 2. Check X-Real-IP header
+        if let Some(ip) = parts
+            .headers
+            .get("x-real-ip")
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.trim().to_string())
+        {
+            return Ok(ClientIp(ip));
+        }
+
+        // 3. Fallback to Socket Connection Info
+        if let Some(ConnectInfo(addr)) = parts.extensions.get::<ConnectInfo<SocketAddr>>() {
+            return Ok(ClientIp(addr.ip().to_string()));
+        }
+
+        // 4. Default fallback
+        Ok(ClientIp("127.0.0.1".to_string()))
+    }
+}
+
+pub struct RateLimiter {
+    requests: tokio::sync::Mutex<std::collections::HashMap<String, Vec<i64>>>,
+}
+
+impl RateLimiter {
+    pub fn new() -> Self {
+        Self {
+            requests: tokio::sync::Mutex::new(std::collections::HashMap::new()),
+        }
+    }
+
+    pub async fn check_limit(&self, key: &str, limit: usize, window_secs: i64) -> bool {
+        let now = chrono::Utc::now().timestamp();
+        let mut map = self.requests.lock().await;
+        let entry = map.entry(key.to_string()).or_insert_with(Vec::new);
+
+        // Retain only requests within the window
+        entry.retain(|&ts| now - ts < window_secs);
+
+        if entry.len() >= limit {
+            false
+        } else {
+            entry.push(now);
+            true
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -450,7 +555,6 @@ mod tests {
     use crate::libs::types::challenges::Challenge;
     use crate::libs::types::solves::Submission;
     use crate::libs::types::teams::{Team, TeamName};
-    use async_trait::async_trait;
     use axum::http::Request;
     use tokio::sync::RwLock;
     use tower::ServiceExt;
@@ -622,6 +726,7 @@ mod tests {
             }),
             jwt_secret: b"secret".to_vec(),
             http_client: reqwest::Client::new(),
+            rate_limiter: Arc::new(RateLimiter::new()),
         };
         let app = create_router(state);
         let response = app

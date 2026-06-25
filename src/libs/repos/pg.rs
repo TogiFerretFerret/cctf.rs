@@ -73,7 +73,8 @@ impl PgStore {
                 points INT NOT NULL, \
                 provided_flag TEXT NOT NULL, \
                 is_correct BOOLEAN NOT NULL, \
-                submitted_at BIGINT NOT NULL \
+                submitted_at BIGINT NOT NULL, \
+                submitted_ip VARCHAR(64) DEFAULT '127.0.0.1' NOT NULL \
              );",
         )
         .execute(&self.pool)
@@ -237,6 +238,7 @@ fn map_submission(row: &sqlx::postgres::PgRow) -> Result<Submission, sqlx::Error
     let provided_flag: String = row.get("provided_flag");
     let is_correct: bool = row.get("is_correct");
     let submitted_at: i64 = row.get("submitted_at");
+    let submitted_ip: String = row.get("submitted_ip");
     Ok(Submission {
         id: crate::libs::types::solves::SubmissionId(id),
         challenge_id,
@@ -246,6 +248,7 @@ fn map_submission(row: &sqlx::postgres::PgRow) -> Result<Submission, sqlx::Error
         provided_flag,
         is_correct,
         submitted_at,
+        submitted_ip,
     })
 }
 
@@ -576,8 +579,8 @@ impl SubmissionRepo for PgStore {
     }
     async fn save(&self, submission: Submission) -> Result<(), RepoError> {
         sqlx::query(
-            "INSERT INTO submissions (id, challenge_id, team_id, account_id, points, provided_flag, is_correct, submitted_at) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"
+            "INSERT INTO submissions (id, challenge_id, team_id, account_id, points, provided_flag, is_correct, submitted_at, submitted_ip) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)"
         )
         .bind(&submission.id.0)
         .bind(&submission.challenge_id)
@@ -587,6 +590,7 @@ impl SubmissionRepo for PgStore {
         .bind(&submission.provided_flag)
         .bind(submission.is_correct)
         .bind(submission.submitted_at)
+        .bind(&submission.submitted_ip)
         .execute(&self.pool)
         .await?;
         Ok(())

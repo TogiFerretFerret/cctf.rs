@@ -15,4 +15,5 @@ pub struct Submission {
     pub provided_flag: String,
     pub is_correct: bool,
     pub submitted_at: i64,
+    pub submitted_ip: String,
 }
