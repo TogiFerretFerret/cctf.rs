@@ -231,7 +231,7 @@ where
     let method = req.method().clone();
     let headers = req.headers().clone();
     let body = req.into_body();
-    let bytes = axum::body::to_bytes(body, 10*1024*1024)
+    let bytes = axum::body::to_bytes(body, 10 * 1024 * 1024)
         .await
         .map_err(|_| StatusCode::BAD_REQUEST)?;
     let reqwest_body = reqwest::Body::from(bytes);
