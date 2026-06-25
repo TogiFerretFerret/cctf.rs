@@ -1,4 +1,4 @@
-use crate::libs::repos::{AccountRepo, ChallengeRepo, SubmissionRepo, TeamRepo, InstanceRepo};
+use crate::libs::repos::{AccountRepo, ChallengeRepo, InstanceRepo, SubmissionRepo, TeamRepo};
 use crate::libs::services::{
     AuthService, OAuthService, ScoreboardService, ServiceError, SolveService,
 };
@@ -6,7 +6,7 @@ use crate::libs::types::accounts::AccountId;
 use crate::libs::types::teams::TeamId;
 use axum::{
     Json, Router,
-    extract::{FromRequestParts, Path, State, Host, Request},
+    extract::{FromRequestParts, Host, Path, Request, State},
     http::{HeaderMap, StatusCode, request::Parts},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -208,21 +208,29 @@ where
     S: SubmissionRepo + Send + Sync + 'static,
 {
     let instance_id = match extract_instance_id(&host) {
-        Some(id) => id, 
+        Some(id) => id,
         None => return Err(StatusCode::NOT_FOUND),
     };
-    let cluster_ip = state.solve_service.challenge_repo
+    let cluster_ip = state
+        .solve_service
+        .challenge_repo
         .get_instance_ip(&instance_id)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .ok_or(StatusCode::NOT_FOUND)?;
-    let path_and_query = req.uri().path_and_query().map(|pq| pq.as_str()).unwrap_or("");
+    let path_and_query = req
+        .uri()
+        .path_and_query()
+        .map(|pq| pq.as_str())
+        .unwrap_or("");
     let target_url = format!("http://{}{}", cluster_ip, path_and_query);
     let method = req.method.clone();
     let headers = req.headers().clone();
     let body = req.into_body();
     let reqwest_body = reqwest::Body::wrap_stream(axum::body::BodyDataStream::new(body));
-    let res = state.http_client.request(method, &target_url)
+    let res = state
+        .http_client
+        .request(method, &target_url)
         .headers(headers)
         .body(reqwest_body)
         .send()
@@ -239,7 +247,9 @@ where
     }
     let response_stream = res.bytes_stream();
     let body = axum::body::Body::from_stream(response_stream);
-    let response = response_builder.body(body).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let response = response_builder
+        .body(body)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(response)
 }
 
@@ -533,10 +543,7 @@ mod tests {
         ) -> Result<Option<String>, RepoError> {
             Ok(None)
         }
-        async fn get_instance_ip(
-            &self, 
-            _instance_id: &str,
-        ) -> Result<Option<String>, RepoError> {
+        async fn get_instance_ip(&self, _instance_id: &str) -> Result<Option<String>, RepoError> {
             Ok(None)
         }
     }
