@@ -214,10 +214,10 @@ mod tests {
     use crate::libs::services::auth::AuthService;
     use crate::libs::services::scoreboard::ScoreboardService;
     use crate::libs::services::solve::{SolveService, calculate_dynamic_points};
-    use crate::libs::types::accounts::{Account, AccountId, AccountName, AccountRole};
+    use crate::libs::types::accounts::{Account, AccountId, AccountName};
     use crate::libs::types::challenges::{Challenge, ScoringMode};
     use crate::libs::types::flags::FlagValidator;
-    use crate::libs::types::solves::{Submission, SubmissionId};
+    use crate::libs::types::solves::Submission;
     use crate::libs::types::teams::{Team, TeamId, TeamName};
     use async_trait::async_trait;
     use std::collections::HashMap;

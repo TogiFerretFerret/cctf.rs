@@ -114,7 +114,7 @@ where
         }
 
         let all_subs = self.submission_repo.find_all().await?;
-        let solve_count = if let Some(ref current_team_id) = team_id {
+        let solve_count = if team_id.is_some() {
             // Group correct submissions by team_id
             let mut team_solves = HashMap::new();
             for s in all_subs {

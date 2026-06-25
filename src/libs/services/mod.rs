@@ -78,6 +78,5 @@ pub mod scoreboard;
 pub mod solve;
 
 pub use auth::{AuthService, OAuthService};
-pub use instancer::InstancerService;
 pub use scoreboard::ScoreboardService;
 pub use solve::SolveService;
