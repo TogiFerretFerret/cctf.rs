@@ -680,7 +680,7 @@ mod tests {
             let is_valid = flag.len() == 8 && flag.ends_with("abc");
             is_valid
         "#;
-        
+
         let script_challenge = Challenge {
             id: "chall-script".to_string(),
             title: crate::libs::types::challenges::ChallengeTitle("Rhai Script Chall".to_string()),
@@ -703,30 +703,39 @@ mod tests {
             requirements: Vec::new(),
             team_consensus: false,
         };
-        ChallengeRepo::save(store.as_ref(), script_challenge).await.unwrap();
+        ChallengeRepo::save(store.as_ref(), script_challenge)
+            .await
+            .unwrap();
 
-        let sub_ok = solver.submit_flag(
-            "chall-script",
-            None,
-            AccountId("user-1".to_string()),
-            "12345abc",
-        ).await.unwrap();
+        let sub_ok = solver
+            .submit_flag(
+                "chall-script",
+                None,
+                AccountId("user-1".to_string()),
+                "12345abc",
+            )
+            .await
+            .unwrap();
         assert!(sub_ok.is_correct);
 
-        let sub_fail_len = solver.submit_flag(
-            "chall-script",
-            None,
-            AccountId("user-1".to_string()),
-            "123abc",
-        ).await;
+        let sub_fail_len = solver
+            .submit_flag(
+                "chall-script",
+                None,
+                AccountId("user-1".to_string()),
+                "123abc",
+            )
+            .await;
         assert!(sub_fail_len.is_err());
 
-        let sub_fail_suffix = solver.submit_flag(
-            "chall-script",
-            None,
-            AccountId("user-1".to_string()),
-            "12345678",
-        ).await;
+        let sub_fail_suffix = solver
+            .submit_flag(
+                "chall-script",
+                None,
+                AccountId("user-1".to_string()),
+                "12345678",
+            )
+            .await;
         assert!(sub_fail_suffix.is_err());
 
         assert_eq!(calculate_dynamic_points(1000, 200, 3, 1), 1000);
