@@ -6,7 +6,7 @@ use crate::libs::types::accounts::AccountId;
 use crate::libs::types::teams::TeamId;
 use axum::{
     Json, Router,
-    extract::{FromRequestParts, Host, Path, Request, State},
+    extract::{FromRequestParts, Path, Request, State},
     http::{HeaderMap, StatusCode, request::Parts},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -198,7 +198,6 @@ fn extract_instance_id(host: &str) -> Option<String> {
 
 pub async fn proxy_handler<A, T, C, S>(
     State(state): State<AppState<A, T, C, S>>,
-    Host(host): Host,
     req: Request,
 ) -> Result<Response, StatusCode>
 where
@@ -207,6 +206,11 @@ where
     C: ChallengeRepo + Send + Sync + 'static,
     S: SubmissionRepo + Send + Sync + 'static,
 {
+    let host = req
+        .headers()
+        .get(axum::http::header::HOST)
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("");
     let instance_id = match extract_instance_id(&host) {
         Some(id) => id,
         None => return Err(StatusCode::NOT_FOUND),
@@ -224,10 +228,10 @@ where
         .map(|pq| pq.as_str())
         .unwrap_or("");
     let target_url = format!("http://{}{}", cluster_ip, path_and_query);
-    let method = req.method.clone();
+    let method = req.method().clone();
     let headers = req.headers().clone();
     let body = req.into_body();
-    let reqwest_body = reqwest::Body::wrap_stream(axum::body::BodyDataStream::new(body));
+    let reqwest_body = reqwest::Body::wrap(body);
     let res = state
         .http_client
         .request(method, &target_url)
