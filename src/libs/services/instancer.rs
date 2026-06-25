@@ -213,7 +213,7 @@ mod tests {
     use crate::libs::repos::{AccountRepo, ChallengeRepo, InstanceRepo, SubmissionRepo, TeamRepo};
     use crate::libs::services::auth::AuthService;
     use crate::libs::services::scoreboard::ScoreboardService;
-    use crate::libs::services::solve::SolveService;
+    use crate::libs::services::solve::{SolveService, calculate_dynamic_points};
     use crate::libs::types::accounts::{Account, AccountId, AccountName, AccountRole};
     use crate::libs::types::challenges::{Challenge, ScoringMode};
     use crate::libs::types::flags::FlagValidator;
@@ -534,8 +534,6 @@ mod tests {
             submission_repo: store.clone(),
             team_repo: store.clone(),
         };
-
-        // 1. Create a Team with 2 members
         let team_a = Team {
             id: TeamId("team-a".to_string()),
             name: TeamName("Team Consensus A".to_string()),
@@ -550,8 +548,6 @@ mod tests {
             create_at: 0,
         };
         TeamRepo::save(store.as_ref(), team_a).await.unwrap();
-
-        // 2. Create a Challenge with DynamicDecay (initial = 500, minimum = 100, decay = 5) and team_consensus = true
         let challenge = Challenge {
             id: "chall-consensus".to_string(),
             title: crate::libs::types::challenges::ChallengeTitle("Consensus Chall".to_string()),
@@ -581,8 +577,6 @@ mod tests {
         ChallengeRepo::save(store.as_ref(), challenge)
             .await
             .unwrap();
-
-        // 3. User 1 submits flag. Correct, points should be awarded to the submission (500 pts).
         let sub1 = solver
             .submit_flag(
                 "chall-consensus",
@@ -593,8 +587,6 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(sub1.points, 500);
-
-        // 4. Let's check scoreboard. Since it's consensus and user-2 hasn't solved it yet, Team A points should be 0.
         let scoreboard_service = ScoreboardService {
             team_repo: store.clone(),
             challenge_repo: store.clone(),
@@ -603,8 +595,6 @@ mod tests {
         };
         let board = scoreboard_service.get_scoreboard().await.unwrap();
         assert_eq!(board[0].points, 0);
-
-        // 5. User 2 submits flag. Correct, points should be awarded.
         let sub2 = solver
             .submit_flag(
                 "chall-consensus",
@@ -615,12 +605,8 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(sub2.points, 500);
-
-        // 6. Check scoreboard again. Since user-1 and user-2 both solved it, Team A points should be 500.
         let board = scoreboard_service.get_scoreboard().await.unwrap();
         assert_eq!(board[0].points, 500);
-
-        // 7. Let's test Multi-Flag / Partials on a separate challenge
         use crate::libs::types::flags::PartialFlag;
         let partial_challenge = Challenge {
             id: "chall-partial".to_string(),
@@ -658,8 +644,6 @@ mod tests {
         ChallengeRepo::save(store.as_ref(), partial_challenge)
             .await
             .unwrap();
-
-        // Submit part 1
         let psub1 = solver
             .submit_flag(
                 "chall-partial",
@@ -669,14 +653,9 @@ mod tests {
             )
             .await
             .unwrap();
-        // 200 * 0.25 = 50 points
         assert_eq!(psub1.points, 50);
-
-        // Scoreboard should show 500 + 50 = 550 points
         let board = scoreboard_service.get_scoreboard().await.unwrap();
         assert_eq!(board[0].points, 550);
-
-        // Attempting to submit part 1 again should error
         let psub1_dup = solver
             .submit_flag(
                 "chall-partial",
@@ -686,5 +665,72 @@ mod tests {
             )
             .await;
         assert!(psub1_dup.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_rhai_script_and_dynamic_decay_curve() {
+        let store = Arc::new(TestStore::default());
+        let solver = SolveService {
+            challenge_repo: store.clone(),
+            submission_repo: store.clone(),
+            team_repo: store.clone(),
+        };
+
+        let rhai_script = r#"
+            let is_valid = flag.len() == 8 && flag.ends_with("abc");
+            is_valid
+        "#;
+        
+        let script_challenge = Challenge {
+            id: "chall-script".to_string(),
+            title: crate::libs::types::challenges::ChallengeTitle("Rhai Script Chall".to_string()),
+            description: crate::libs::types::challenges::ChallengeDescription(
+                crate::libs::types::htmlstring::HtmlString("Desc".to_string()),
+            ),
+            category: crate::libs::types::challenges::ChallengeCategory("Web".to_string()),
+            points: crate::libs::types::challenges::ChallengePoints {
+                mode: ScoringMode::PointValue,
+                equation: "100".to_string(),
+            },
+            flag: FlagValidator::Script(rhai_script.to_string()),
+            author: crate::libs::types::challenges::ChallengeAuthor {
+                id: "admin".to_string(),
+                username: "admin".to_string(),
+            },
+            hints: Vec::new(),
+            files: Vec::new(),
+            tags: Vec::new(),
+            requirements: Vec::new(),
+            team_consensus: false,
+        };
+        ChallengeRepo::save(store.as_ref(), script_challenge).await.unwrap();
+
+        let sub_ok = solver.submit_flag(
+            "chall-script",
+            None,
+            AccountId("user-1".to_string()),
+            "12345abc",
+        ).await.unwrap();
+        assert!(sub_ok.is_correct);
+
+        let sub_fail_len = solver.submit_flag(
+            "chall-script",
+            None,
+            AccountId("user-1".to_string()),
+            "123abc",
+        ).await;
+        assert!(sub_fail_len.is_err());
+
+        let sub_fail_suffix = solver.submit_flag(
+            "chall-script",
+            None,
+            AccountId("user-1".to_string()),
+            "12345678",
+        ).await;
+        assert!(sub_fail_suffix.is_err());
+
+        assert_eq!(calculate_dynamic_points(1000, 200, 3, 1), 1000);
+        assert_eq!(calculate_dynamic_points(1000, 200, 3, 2), 920);
+        assert_eq!(calculate_dynamic_points(1000, 200, 3, 4), 600);
     }
 }
