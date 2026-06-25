@@ -34,7 +34,18 @@ impl FlagValidator {
                     false
                 }
             }
-            FlagValidator::Script(_) => false,
+            FlagValidator::Script(script_content) => {
+                let engine = rhai::Engine::new();
+                let mut scope = rhai::Scope::new();
+                scope.push("flag", submitted_flag.trim().to_string());
+                match engine.eval_with_scope::<bool>(&mut scope, &script_content) {
+                    Ok(is_correct) => is_correct,
+                    Err(e) => {
+                        eprintln!("rhai!: {:?}", e);
+                        false
+                    }
+                }
+            },
             FlagValidator::Multi(flags) => flags
                 .iter()
                 .any(|f| f.validator.is_match(submitted_flag, active_instanced_flag)),
