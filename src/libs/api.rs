@@ -598,6 +598,12 @@ where
             .into_response();
         }
     };
+    let account = match state.auth_service.account_repo.find_by_id(&user.account_id).await {
+        Ok(Some(a))=>a,
+        _ => return StatusCode::UNAUTHORIZED.into_response()
+    };
+
+    StatusCode::OK.into_response()
 }
 
 pub fn create_router<A, T, C, S>(state: AppState<A, T, C, S>) -> Router
