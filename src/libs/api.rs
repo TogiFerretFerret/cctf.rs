@@ -4,6 +4,7 @@ use crate::libs::services::{
 };
 use crate::libs::types::accounts::AccountId;
 use crate::libs::types::teams::TeamId;
+use ::async_trait::async_trait;
 use axum::{
     Json, Router,
     extract::{ConnectInfo, FromRequestParts, Path, Request, State},
@@ -15,9 +16,8 @@ use fluent_templates::{Loader, fluent_bundle::FluentValue, static_loader};
 use serde::Deserialize;
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::net::SocketAddr;
-use ::async_trait::async_trait;
+use std::sync::Arc;
 
 static_loader! {
     static LOCALES = {
@@ -277,11 +277,16 @@ where
     C: ChallengeRepo + Send + Sync + 'static,
     S: SubmissionRepo + Send + Sync + 'static,
 {
-    if !state.rate_limiter.check_limit(&format!("auth-ip:{}", ip), 5, 60).await {
+    if !state
+        .rate_limiter
+        .check_limit(&format!("auth-ip:{}", ip), 5, 60)
+        .await
+    {
         return LocalizedError {
             status: StatusCode::TOO_MANY_REQUESTS,
             message: ServiceError::RateLimitExceeded.localize(&lang.0),
-        }.into_response();
+        }
+        .into_response();
     }
 
     let res = state
@@ -312,11 +317,16 @@ where
     C: ChallengeRepo + Send + Sync + 'static,
     S: SubmissionRepo + Send + Sync + 'static,
 {
-    if !state.rate_limiter.check_limit(&format!("auth-ip:{}", ip), 5, 60).await {
+    if !state
+        .rate_limiter
+        .check_limit(&format!("auth-ip:{}", ip), 5, 60)
+        .await
+    {
         return LocalizedError {
             status: StatusCode::TOO_MANY_REQUESTS,
             message: ServiceError::RateLimitExceeded.localize(&lang.0),
-        }.into_response();
+        }
+        .into_response();
     }
 
     let res = state
@@ -380,18 +390,28 @@ where
     S: SubmissionRepo + Send + Sync + 'static,
 {
     // Limit flag attempts to 10 per 60 seconds per IP
-    if !state.rate_limiter.check_limit(&format!("sub-ip:{}", ip), 10, 60).await {
+    if !state
+        .rate_limiter
+        .check_limit(&format!("sub-ip:{}", ip), 10, 60)
+        .await
+    {
         return LocalizedError {
             status: StatusCode::TOO_MANY_REQUESTS,
             message: ServiceError::RateLimitExceeded.localize(&lang.0),
-        }.into_response();
+        }
+        .into_response();
     }
     // Limit flag attempts to 10 per 60 seconds per account
-    if !state.rate_limiter.check_limit(&format!("sub-acc:{}", user.account_id.0), 10, 60).await {
+    if !state
+        .rate_limiter
+        .check_limit(&format!("sub-acc:{}", user.account_id.0), 10, 60)
+        .await
+    {
         return LocalizedError {
             status: StatusCode::TOO_MANY_REQUESTS,
             message: ServiceError::RateLimitExceeded.localize(&lang.0),
-        }.into_response();
+        }
+        .into_response();
     }
 
     let team_id = payload.team_id.map(TeamId);
