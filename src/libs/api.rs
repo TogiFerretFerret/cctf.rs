@@ -604,7 +604,7 @@ where
     };
     if team.bracket == "Collegiate" {
         let is_allowed = account.email.as_ref()
-            .map(|e| e.0.ends_with(".edu"))
+            .map(|e| e.0.ends_with(".edu")) // TODO: filter too harsh?
             .unwrap_or(false);
         if !is_allowed {
             return LocalizedError {
@@ -614,6 +614,13 @@ where
     }
     let mut updated_account = account;
     updated_account.team_id = Some(team.id.clone());
+    if let Err(_) = state.auth_service.account_repo.update(updated_account).await {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    }
+    if !team.member_ids.contains(&user.account_id) {
+        team.member_ids.push(user.account_id.clone());
+        let _ = state.auth_service.team_repo.update(team).await;
+    }
     StatusCode::OK.into_response()
 }
 
@@ -926,5 +933,139 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn test_invite_token_signature_and_expiration() {
+        let secret = b"unit-test-secret-key-123456";
+        let team_id = "test-team-id";
+        let expires_at = chrono::Utc::now().timestamp() + 3600; 
+        let token = generate_invite_token(team_id, expires_at, secret);
+        let result = verify_invite_token(&token, secret);
+        assert!(result.is_some());
+        let (verified_team_id, verified_expires_at) = result.unwrap();
+        assert_eq!(verified_team_id, team_id);
+        assert_eq!(verified_expires_at, expires_at);
+        let expired_at = chrono::Utc::now().timestamp() - 10;
+        let expired_token = generate_invite_token(team_id, expires_at, secret);
+        assert!(verify_invite_token(&expired_token, secret).is_none());
+        let parts: Vec<&str> = token.split(':').collect();
+        let tampered_token = format!("{}:{}:{}", parts[0], parts[1], "invalid_signature");
+        assert!(verify_invite_token(&tampered_token, secret).is_none());
+    }
+
+    #[tokio::test]
+    async fn test_collegiate_bracket_acl() {
+        let store = Arc::new(TestStore::default());
+        
+        // 1. Create a Collegiate bracket team
+        let team = Team {
+            id: TeamId("team-col".to_string()),
+            name: TeamName("Collegiate Team".to_string()),
+            ctftime_id: None,
+            invite_code: None,
+            captain_id: AccountId("captain".to_string()),
+            member_ids: vec![AccountId("captain".to_string())],
+            bracket: "Collegiate".to_string(),
+            fields: Default::default(),
+            create_at: chrono::Utc::now().timestamp(),
+        };
+        store.save(team).await.unwrap();
+
+        // 2. Player 1: Valid .edu email
+        let player1 = Account {
+            id: AccountId("player1".to_string()),
+            username: AccountName("player1".to_string()),
+            email: Some(AccountEmail("student@test.edu".to_string())),
+            password_hash: None,
+            role: AccountRole::Player,
+            team_id: None,
+            ctftime_id: None,
+            fields: Default::default(),
+            created_at: chrono::Utc::now().timestamp(),
+        };
+        store.save(player1).await.unwrap();
+
+        // 3. Player 2: Invalid non-.edu email
+        let player2 = Account {
+            id: AccountId("player2".to_string()),
+            username: AccountName("player2".to_string()),
+            email: Some(AccountEmail("user@gmail.com".to_string())),
+            password_hash: None,
+            role: AccountRole::Player,
+            team_id: None,
+            ctftime_id: None,
+            fields: Default::default(),
+            created_at: chrono::Utc::now().timestamp(),
+        };
+        store.save(player2).await.unwrap();
+
+        let state = AppState {
+            auth_service: Arc::new(AuthService {
+                account_repo: store.clone(),
+                team_repo: store.clone(),
+                jwt_secret: b"secret".to_vec(),
+            }),
+            oauth_service: Arc::new(OAuthService {
+                account_repo: store.clone(),
+                team_repo: store.clone(),
+                client_id: "id".to_string(),
+                client_secret: "secret".to_string(),
+                redirect_uri: "uri".to_string(),
+                jwt_secret: b"secret".to_vec(),
+            }),
+            solve_service: Arc::new(SolveService {
+                challenge_repo: store.clone(),
+                submission_repo: store.clone(),
+                team_repo: store.clone(),
+            }),
+            scoreboard_service: Arc::new(ScoreboardService {
+                team_repo: store.clone(),
+                challenge_repo: store.clone(),
+                submission_repo: store.clone(),
+                sort_by_accuracy: false,
+                freeze_time: None,
+            }),
+            jwt_secret: b"secret".to_vec(),
+            http_client: reqwest::Client::new(),
+            rate_limiter: Arc::new(RateLimiter::new()),
+        };
+
+        let app = create_router(state);
+
+        let token = generate_invite_token("team-col", chrono::Utc::now().timestamp() + 3600, b"secret");
+
+        // 4. Test Join with valid .edu player 1
+        let p1_auth_token = crate::libs::crypto::jwt::encode(&AccountId("player1".to_string()), b"secret").unwrap();
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/teams/join")
+                    .header("content-type", "application/json")
+                    .header("authorization", format!("Bearer {}", p1_auth_token))
+                    .body(axum::body::Body::from(format!(r#"{{"token":"{}"}}"#, token)))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // 5. Test Join with invalid Gmail player 2 (Should fail with 403 Forbidden)
+        let p2_auth_token = crate::libs::crypto::jwt::encode(&AccountId("player2".to_string()), b"secret").unwrap();
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/teams/join")
+                    .header("content-type", "application/json")
+                    .header("authorization", format!("Bearer {}", p2_auth_token))
+                    .body(axum::body::Body::from(format!(r#"{{"token":"{}"}}"#, token)))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
     }
 }
