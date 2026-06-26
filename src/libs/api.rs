@@ -13,9 +13,10 @@ use axum::{
     routing::{get, post},
 };
 use fluent_templates::{Loader, fluent_bundle::FluentValue, static_loader};
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, Mac, KeyInit};
 use serde::Deserialize;
 use sha2::Sha256;
+use base64::{Engine as _, prelude::BASE64_URL_SAFE_NO_PAD};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -217,10 +218,10 @@ fn extract_instance_id(host: &str) -> Option<String> {
 fn generate_invite_token(team_id: &str, expires_at: i64, secret: &[u8]) -> String {
     let message = format!("{}:{}", team_id, expires_at);
     type HmacSha256 = Hmac<Sha256>;
-    let mut mac = HmacSha256::new_from_sice(secret).expect("HMAC can take key of any size");
+    let mut mac = HmacSha256::new_from_slice(secret).expect("HMAC can take key of any size");
     // okay because this shouldn't ever end up getting shown to user in any way possible.
     mac.update(message.as_bytes());
-    let signature = hex::encode(mac.finalize().into_bytes());
+    let signature = BASE64_URL_SAFE_NO_PAD.encode(mac.finalize().into_bytes());
     format!("{}:{}:{}", team_id, expires_at, signature)
 }
 
