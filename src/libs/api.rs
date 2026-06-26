@@ -598,23 +598,37 @@ where
             .into_response();
         }
     };
-    let account = match state.auth_service.account_repo.find_by_id(&user.account_id).await {
-        Ok(Some(a))=>a,
-        _ => return StatusCode::UNAUTHORIZED.into_response()
+    let account = match state
+        .auth_service
+        .account_repo
+        .find_by_id(&user.account_id)
+        .await
+    {
+        Ok(Some(a)) => a,
+        _ => return StatusCode::UNAUTHORIZED.into_response(),
     };
     if team.bracket == "Collegiate" {
-        let is_allowed = account.email.as_ref()
+        let is_allowed = account
+            .email
+            .as_ref()
             .map(|e| e.0.ends_with(".edu")) // TODO: filter too harsh?
             .unwrap_or(false);
         if !is_allowed {
             return LocalizedError {
-                status: StatusCode::FORBIDDEN, message: LOCALES.lookup(&lang.0.parse().unwrap(), "ctf-bracket-domain-restricted"),
-            }.into_response();
+                status: StatusCode::FORBIDDEN,
+                message: LOCALES.lookup(&lang.0.parse().unwrap(), "ctf-bracket-domain-restricted"),
+            }
+            .into_response();
         }
     }
     let mut updated_account = account;
     updated_account.team_id = Some(team.id.clone());
-    if let Err(_) = state.auth_service.account_repo.update(updated_account).await {
+    if let Err(_) = state
+        .auth_service
+        .account_repo
+        .update(updated_account)
+        .await
+    {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
     if !team.member_ids.contains(&user.account_id) {
@@ -939,7 +953,7 @@ mod tests {
     fn test_invite_token_signature_and_expiration() {
         let secret = b"unit-test-secret-key-123456";
         let team_id = "test-team-id";
-        let expires_at = chrono::Utc::now().timestamp() + 3600; 
+        let expires_at = chrono::Utc::now().timestamp() + 3600;
         let token = generate_invite_token(team_id, expires_at, secret);
         let result = verify_invite_token(&token, secret);
         assert!(result.is_some());
@@ -957,7 +971,7 @@ mod tests {
     #[tokio::test]
     async fn test_collegiate_bracket_acl() {
         let store = Arc::new(TestStore::default());
-        
+
         // 1. Create a Collegiate bracket team
         let team = Team {
             id: TeamId("team-col".to_string()),
@@ -1033,10 +1047,12 @@ mod tests {
 
         let app = create_router(state);
 
-        let token = generate_invite_token("team-col", chrono::Utc::now().timestamp() + 3600, b"secret");
+        let token =
+            generate_invite_token("team-col", chrono::Utc::now().timestamp() + 3600, b"secret");
 
         // 4. Test Join with valid .edu player 1
-        let p1_auth_token = crate::libs::crypto::jwt::encode(&AccountId("player1".to_string()), b"secret").unwrap();
+        let p1_auth_token =
+            crate::libs::crypto::jwt::encode(&AccountId("player1".to_string()), b"secret").unwrap();
         let response = app
             .clone()
             .oneshot(
@@ -1045,7 +1061,10 @@ mod tests {
                     .uri("/api/v1/teams/join")
                     .header("content-type", "application/json")
                     .header("authorization", format!("Bearer {}", p1_auth_token))
-                    .body(axum::body::Body::from(format!(r#"{{"token":"{}"}}"#, token)))
+                    .body(axum::body::Body::from(format!(
+                        r#"{{"token":"{}"}}"#,
+                        token
+                    )))
                     .unwrap(),
             )
             .await
@@ -1053,7 +1072,8 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
 
         // 5. Test Join with invalid Gmail player 2 (Should fail with 403 Forbidden)
-        let p2_auth_token = crate::libs::crypto::jwt::encode(&AccountId("player2".to_string()), b"secret").unwrap();
+        let p2_auth_token =
+            crate::libs::crypto::jwt::encode(&AccountId("player2".to_string()), b"secret").unwrap();
         let response = app
             .oneshot(
                 Request::builder()
@@ -1061,7 +1081,10 @@ mod tests {
                     .uri("/api/v1/teams/join")
                     .header("content-type", "application/json")
                     .header("authorization", format!("Bearer {}", p2_auth_token))
-                    .body(axum::body::Body::from(format!(r#"{{"token":"{}"}}"#, token)))
+                    .body(axum::body::Body::from(format!(
+                        r#"{{"token":"{}"}}"#,
+                        token
+                    )))
                     .unwrap(),
             )
             .await
