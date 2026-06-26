@@ -232,26 +232,27 @@ fn verify_invite_token(token: &str, secret: &[u8]) -> Option<(String, i64)> {
     }
     let team_id = parts[0];
     let expires_at_str = parts[1];
-    let signature_hex = parts[2];
+    let signature_base64 = parts[2];
+
     let expires_at = expires_at_str.parse::<i64>().ok()?;
     let now = chrono::Utc::now().timestamp();
     if now > expires_at {
-        return None;
+        return None; // Expired
     }
-    let mmessage = format!("{}:{}", team_id, expires_at);
+
+    let message = format!("{}:{}", team_id, expires_at);
     type HmacSha256 = Hmac<Sha256>;
     let mut mac = HmacSha256::new_from_slice(secret).ok()?;
     mac.update(message.as_bytes());
-    let expected_signature = mac.finalize().into_bytes();
-    let provided_signature = hex::decode(signature_hex).ok()?;
-    if ring::constant_time::verify_slices_are_equal(&expected_signature, &provided_signature)
-        .is_ok()
-    {
+
+    let provided_sig = BASE64_URL_SAFE_NO_PAD.decode(signature_base64).ok()?;
+    if mac.verify_slice(&provided_sig).is_ok() {
         Some((team_id.to_string(), expires_at))
     } else {
         None
     }
 }
+
 
 pub async fn proxy_handler<A, T, C, S>(
     State(state): State<AppState<A, T, C, S>>,
