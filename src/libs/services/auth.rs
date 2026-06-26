@@ -203,6 +203,7 @@ where
                                 invite_code: None,
                                 captain_id: new_account.id.clone(),
                                 member_ids: vec![new_account.id.clone()],
+                                bracket: "Open".to_string(),
                                 fields: HashMap::new(),
                                 create_at: chrono::Utc::now().timestamp(),
                             };

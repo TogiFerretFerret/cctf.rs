@@ -223,7 +223,7 @@ where
     }
 
     pub async fn export_ctftime(&self) -> Result<CtfTimeScoreboardExport, ServiceError> {
-        let standings = self.get_scoreboard().await?;
+        let standings = self.get_scoreboard(None).await?;
         let submissions = self.submission_repo.find_all().await?;
         let challenges = self.challenge_repo.find_all().await?;
         let challenge_map: HashMap<String, &Challenge> =

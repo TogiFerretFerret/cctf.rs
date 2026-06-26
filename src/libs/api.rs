@@ -4,7 +4,6 @@ use crate::libs::services::{
 };
 use crate::libs::types::accounts::AccountId;
 use crate::libs::types::teams::TeamId;
-use ::async_trait::async_trait;
 use axum::{
     Json, Router,
     extract::{ConnectInfo, FromRequestParts, Path, Request, State},
@@ -700,6 +699,8 @@ where
             "/api/v1/scoreboard/export",
             get(export_scoreboard::<A, T, C, S>),
         )
+        .route("/api/v1/teams/invite", post(create_invite::<A, T, C, S>))
+        .route("/api/v1/teams/join", post(join_team::<A, T, C, S>))
         .fallback(proxy_handler::<A, T, C, S>)
         .with_state(state)
 }
@@ -775,10 +776,11 @@ impl RateLimiter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use async_trait::async_trait;
     use crate::libs::repos::{
         AccountRepo, ChallengeRepo, InstanceRepo, RepoError, SubmissionRepo, TeamRepo,
     };
-    use crate::libs::types::accounts::{Account, AccountName};
+    use crate::libs::types::accounts::{Account, AccountName, AccountEmail, AccountRole};
     use crate::libs::types::challenges::Challenge;
     use crate::libs::types::solves::Submission;
     use crate::libs::types::teams::{Team, TeamName};
@@ -1000,7 +1002,7 @@ mod tests {
         assert_eq!(verified_team_id, team_id);
         assert_eq!(verified_expires_at, expires_at);
         let expired_at = chrono::Utc::now().timestamp() - 10;
-        let expired_token = generate_invite_token(team_id, expires_at, secret);
+        let expired_token = generate_invite_token(team_id, expired_at, secret);
         assert!(verify_invite_token(&expired_token, secret).is_none());
         let parts: Vec<&str> = token.split(':').collect();
         let tampered_token = format!("{}:{}:{}", parts[0], parts[1], "invalid_signature");

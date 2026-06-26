@@ -404,8 +404,8 @@ impl TeamRepo for PgStore {
         let fields_val =
             serde_json::to_value(&team.fields).map_err(|e| RepoError::Internal(e.to_string()))?;
         sqlx::query(
-            "UPDATE teams SET name = $1, ctftime_id = $2, invite_code = $3, captain_id = $4, bracket = $5, fields = $5, created_at = $6 \
-             WHERE id = $7"
+            "UPDATE teams SET name = $1, ctftime_id = $2, invite_code = $3, captain_id = $4, bracket = $5, fields = $6, created_at = $7 \
+             WHERE id = $8"
         )
         .bind(&team.name.0)
         .bind(team.ctftime_id.map(|id| id as i32))

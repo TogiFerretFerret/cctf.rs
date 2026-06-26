@@ -502,7 +502,7 @@ mod tests {
             sort_by_accuracy: true,
             freeze_time: None,
         };
-        let board_acc = scoreboard_service_acc.get_scoreboard().await.unwrap();
+        let board_acc = scoreboard_service_acc.get_scoreboard(None).await.unwrap();
         assert_eq!(board_acc[0].team_name, "Team A");
     }
     #[test]
@@ -603,7 +603,7 @@ mod tests {
             sort_by_accuracy: false,
             freeze_time: None,
         };
-        let board = scoreboard_service.get_scoreboard().await.unwrap();
+        let board = scoreboard_service.get_scoreboard(None).await.unwrap();
         assert_eq!(board[0].points, 0);
         let sub2 = solver
             .submit_flag(
@@ -616,7 +616,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(sub2.points, 500);
-        let board = scoreboard_service.get_scoreboard().await.unwrap();
+        let board = scoreboard_service.get_scoreboard(None).await.unwrap();
         assert_eq!(board[0].points, 500);
         use crate::libs::types::flags::PartialFlag;
         let partial_challenge = Challenge {
@@ -666,7 +666,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(psub1.points, 50);
-        let board = scoreboard_service.get_scoreboard().await.unwrap();
+        let board = scoreboard_service.get_scoreboard(None).await.unwrap();
         assert_eq!(board[0].points, 550);
         let psub1_dup = solver
             .submit_flag(
