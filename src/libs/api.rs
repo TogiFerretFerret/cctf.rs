@@ -954,6 +954,7 @@ mod tests {
             jwt_secret: b"secret".to_vec(),
             http_client: reqwest::Client::new(),
             rate_limiter: Arc::new(RateLimiter::new()),
+            bracket_acl_scripts: Arc::new(tokio::sync::RwLock::new(load_bracket_scripts())),
         };
         let app = create_router(state);
         let response = app
@@ -1081,6 +1082,7 @@ mod tests {
             jwt_secret: b"secret".to_vec(),
             http_client: reqwest::Client::new(),
             rate_limiter: Arc::new(RateLimiter::new()),
+            bracket_acl_scripts: Arc::new(tokio::sync::RwLock::new(load_bracket_scripts())),
         };
 
         let app = create_router(state);
