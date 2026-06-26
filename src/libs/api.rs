@@ -12,11 +12,11 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
+use base64::{Engine as _, prelude::BASE64_URL_SAFE_NO_PAD};
 use fluent_templates::{Loader, fluent_bundle::FluentValue, static_loader};
-use hmac::{Hmac, Mac, KeyInit};
+use hmac::{Hmac, KeyInit, Mac};
 use serde::Deserialize;
 use sha2::Sha256;
-use base64::{Engine as _, prelude::BASE64_URL_SAFE_NO_PAD};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -262,7 +262,10 @@ pub fn load_bracket_scripts() -> HashMap<String, String> {
         // Fallback default rule (replicates previous Collegiate check dynamically)
         // TODO: remove
         let mut map = HashMap::new();
-        map.insert("Collegiate".to_string(), "email.ends_with(\".edu\")".to_string());
+        map.insert(
+            "Collegiate".to_string(),
+            "email.ends_with(\".edu\")".to_string(),
+        );
         map
     }
 }
@@ -611,19 +614,35 @@ where
 {
     let (team_id_str, _) = match verify_invite_token(&payload.token, &state.jwt_secret) {
         Some(val) => val,
-        None => return LocalizedError {
-            status: StatusCode::BAD_REQUEST,
-            message: LOCALES.lookup(&lang.0.parse().unwrap(), "ctf-invalid-invite-token"),
-        }.into_response(),
+        None => {
+            return LocalizedError {
+                status: StatusCode::BAD_REQUEST,
+                message: LOCALES.lookup(&lang.0.parse().unwrap(), "ctf-invalid-invite-token"),
+            }
+            .into_response();
+        }
     };
-    let mut team = match state.auth_service.team_repo.find_by_id(&TeamId(team_id_str)).await {
+    let mut team = match state
+        .auth_service
+        .team_repo
+        .find_by_id(&TeamId(team_id_str))
+        .await
+    {
         Ok(Some(t)) => t,
-        _ => return LocalizedError {
-            status: StatusCode::NOT_FOUND,
-            message: LOCALES.lookup(&lang.0.parse().unwrap(), "ctf-team-not-found"),
-        }.into_response(),
+        _ => {
+            return LocalizedError {
+                status: StatusCode::NOT_FOUND,
+                message: LOCALES.lookup(&lang.0.parse().unwrap(), "ctf-team-not-found"),
+            }
+            .into_response();
+        }
     };
-    let account = match state.auth_service.account_repo.find_by_id(&user.account_id).await {
+    let account = match state
+        .auth_service
+        .account_repo
+        .find_by_id(&user.account_id)
+        .await
+    {
         Ok(Some(a)) => a,
         _ => return StatusCode::UNAUTHORIZED.into_response(),
     };
@@ -636,12 +655,18 @@ where
             return LocalizedError {
                 status: StatusCode::FORBIDDEN,
                 message: LOCALES.lookup(&lang.0.parse().unwrap(), "ctf-bracket-domain-restricted"),
-            }.into_response();
+            }
+            .into_response();
         }
     }
     let mut updated_account = account;
     updated_account.team_id = Some(team.id.clone());
-    if let Err(_) = state.auth_service.account_repo.update(updated_account).await {
+    if let Err(_) = state
+        .auth_service
+        .account_repo
+        .update(updated_account)
+        .await
+    {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
     if !team.member_ids.contains(&user.account_id) {
@@ -650,7 +675,6 @@ where
     }
     StatusCode::OK.into_response()
 }
-
 
 pub fn create_router<A, T, C, S>(state: AppState<A, T, C, S>) -> Router
 where
