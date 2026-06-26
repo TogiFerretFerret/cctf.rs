@@ -43,6 +43,7 @@ where
     pub jwt_secret: Vec<u8>,
     pub http_client: reqwest::Client,
     pub rate_limiter: Arc<RateLimiter>,
+    pub bracket_acl_scripts: Arc<tokio::sync::RwLock<HashMap<String, String>>>,
 }
 
 impl<A, T, C, S> Clone for AppState<A, T, C, S>
@@ -61,6 +62,7 @@ where
             jwt_secret: self.jwt_secret.clone(),
             http_client: self.http_client.clone(),
             rate_limiter: self.rate_limiter.clone(),
+            bracket_acl_scripts: self.bracket_acl_scripts.clone(),
         }
     }
 }
@@ -506,8 +508,14 @@ where
     }
 }
 
+#[derive(Deserialize)]
+pub struct ScoreboardQuery {
+    pub bracket: Option<String>,
+}
+
 pub async fn get_scoreboard<A, T, C, S>(
     State(state): State<AppState<A, T, C, S>>,
+    axum::extract::Query(query): axum::extract::Query<ScoreboardQuery>,
     lang: PreferredLang,
 ) -> axum::response::Response
 where
@@ -518,7 +526,7 @@ where
 {
     let res = state
         .scoreboard_service
-        .get_scoreboard()
+        .get_scoreboard(query.bracket.as_deref())
         .await
         .map_localized(&lang.0);
     match res {
@@ -603,60 +611,37 @@ where
 {
     let (team_id_str, _) = match verify_invite_token(&payload.token, &state.jwt_secret) {
         Some(val) => val,
-        None => {
-            return LocalizedError {
-                status: StatusCode::BAD_REQUEST,
-                message: LOCALES.lookup(&lang.0.parse().unwrap(), "ctf-invalid-invite-token"),
-            }
-            .into_response();
-        }
+        None => return LocalizedError {
+            status: StatusCode::BAD_REQUEST,
+            message: LOCALES.lookup(&lang.0.parse().unwrap(), "ctf-invalid-invite-token"),
+        }.into_response(),
     };
-    let mut team = match state
-        .auth_service
-        .team_repo
-        .find_by_id(&TeamId(team_id_str))
-        .await
-    {
+    let mut team = match state.auth_service.team_repo.find_by_id(&TeamId(team_id_str)).await {
         Ok(Some(t)) => t,
-        _ => {
-            return LocalizedError {
-                status: StatusCode::NOT_FOUND,
-                message: LOCALES.lookup(&lang.0.parse().unwrap(), "ctf-team-not-found"),
-            }
-            .into_response();
-        }
+        _ => return LocalizedError {
+            status: StatusCode::NOT_FOUND,
+            message: LOCALES.lookup(&lang.0.parse().unwrap(), "ctf-team-not-found"),
+        }.into_response(),
     };
-    let account = match state
-        .auth_service
-        .account_repo
-        .find_by_id(&user.account_id)
-        .await
-    {
+    let account = match state.auth_service.account_repo.find_by_id(&user.account_id).await {
         Ok(Some(a)) => a,
         _ => return StatusCode::UNAUTHORIZED.into_response(),
     };
-    if team.bracket == "Collegiate" {
-        let is_allowed = account
-            .email
-            .as_ref()
-            .map(|e| e.0.ends_with(".edu")) // TODO: filter too harsh?
-            .unwrap_or(false);
+    let scripts = state.bracket_acl_scripts.read().await;
+    if let Some(script) = scripts.get(&team.bracket) {
+        let email_str = account.email.as_ref().map(|e| e.0.as_str()).unwrap_or("");
+        let username_str = account.username.0.as_str();
+        let is_allowed = validate_bracket_join_rhai(email_str, username_str, script);
         if !is_allowed {
             return LocalizedError {
                 status: StatusCode::FORBIDDEN,
                 message: LOCALES.lookup(&lang.0.parse().unwrap(), "ctf-bracket-domain-restricted"),
-            }
-            .into_response();
+            }.into_response();
         }
     }
     let mut updated_account = account;
     updated_account.team_id = Some(team.id.clone());
-    if let Err(_) = state
-        .auth_service
-        .account_repo
-        .update(updated_account)
-        .await
-    {
+    if let Err(_) = state.auth_service.account_repo.update(updated_account).await {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
     if !team.member_ids.contains(&user.account_id) {
@@ -665,6 +650,7 @@ where
     }
     StatusCode::OK.into_response()
 }
+
 
 pub fn create_router<A, T, C, S>(state: AppState<A, T, C, S>) -> Router
 where
