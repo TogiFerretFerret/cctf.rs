@@ -273,7 +273,8 @@ pub fn validate_bracket_join_rhai(email: &str, username: &str, script_content: &
     match engine.eval_with_scope::<bool>(&mut scope, script_content) {
         Ok(is_allowed) => is_allowed,
         Err(e) => {
-            eprintln!("Rhai bracket validation error: {:?}", e);
+            eprintln!("rhaiBracket!: {:?}", e);
+            // fine because at most e gets pushed + vague/generic enough to be all languages lmao
             false
         }
     }
