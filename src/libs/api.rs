@@ -984,7 +984,7 @@ mod tests {
             fields: Default::default(),
             create_at: chrono::Utc::now().timestamp(),
         };
-        store.save(team).await.unwrap();
+        TeamRepo::save(store.as_ref(), team).await.unwrap();
 
         // 2. Player 1: Valid .edu email
         let player1 = Account {
@@ -998,7 +998,7 @@ mod tests {
             fields: Default::default(),
             created_at: chrono::Utc::now().timestamp(),
         };
-        store.save(player1).await.unwrap();
+        AccountRepo::save(store.as_ref(), player1).await.unwrap();
 
         // 3. Player 2: Invalid non-.edu email
         let player2 = Account {
@@ -1012,7 +1012,7 @@ mod tests {
             fields: Default::default(),
             created_at: chrono::Utc::now().timestamp(),
         };
-        store.save(player2).await.unwrap();
+        AccountRepo::save(store.as_ref(), player2).await.unwrap();
 
         let state = AppState {
             auth_service: Arc::new(AuthService {
