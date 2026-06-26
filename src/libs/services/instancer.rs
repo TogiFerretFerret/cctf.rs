@@ -395,6 +395,7 @@ mod tests {
             invite_code: None,
             captain_id: AccountId("captain-a".to_string()),
             member_ids: vec![AccountId("captain-a".to_string())],
+            bracket: "Open".to_string(),
             fields: HashMap::new(),
             create_at: 0,
         };
@@ -405,6 +406,7 @@ mod tests {
             invite_code: None,
             captain_id: AccountId("captain-b".to_string()),
             member_ids: vec![AccountId("captain-b".to_string())],
+            bracket: "Open".to_string(),
             fields: HashMap::new(),
             create_at: 0,
         };
@@ -490,7 +492,7 @@ mod tests {
             sort_by_accuracy: false,
             freeze_time: None,
         };
-        let board = scoreboard_service.get_scoreboard().await.unwrap();
+        let board = scoreboard_service.get_scoreboard(None).await.unwrap();
         assert_eq!(board[0].team_name, "Team A");
         assert_eq!(board[1].team_name, "Team B");
         let scoreboard_service_acc = ScoreboardService {
@@ -549,6 +551,7 @@ mod tests {
                 AccountId("user-1".to_string()),
                 AccountId("user-2".to_string()),
             ],
+            bracket: "Open".to_string(),
             fields: HashMap::new(),
             create_at: 0,
         };
