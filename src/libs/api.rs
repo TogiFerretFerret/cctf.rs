@@ -776,14 +776,14 @@ impl RateLimiter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use async_trait::async_trait;
     use crate::libs::repos::{
         AccountRepo, ChallengeRepo, InstanceRepo, RepoError, SubmissionRepo, TeamRepo,
     };
-    use crate::libs::types::accounts::{Account, AccountName, AccountEmail, AccountRole};
+    use crate::libs::types::accounts::{Account, AccountEmail, AccountName, AccountRole};
     use crate::libs::types::challenges::Challenge;
     use crate::libs::types::solves::Submission;
     use crate::libs::types::teams::{Team, TeamName};
+    use async_trait::async_trait;
     use axum::http::Request;
     use tokio::sync::RwLock;
     use tower::ServiceExt;
