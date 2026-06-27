@@ -78,9 +78,7 @@ pub mod auth;
 pub mod instancer;
 pub mod scoreboard;
 pub mod solve;
-pub mod email;
 
 pub use auth::{AuthService, OAuthService};
 pub use scoreboard::ScoreboardService;
 pub use solve::SolveService;
-pub use email::{Email, EmailService, SmtpSenderClient, SmtpCatcherServer};
