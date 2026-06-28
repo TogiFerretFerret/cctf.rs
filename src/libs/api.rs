@@ -68,6 +68,13 @@ where
 
 pub struct PreferredLang(pub String);
 
+/// Parse a language tag, falling back to en-US. NEVER `.unwrap()` this on the
+/// raw Accept-Language header — a client sending garbage would panic the handler.
+fn lang_id(lang: &str) -> unic_langid::LanguageIdentifier {
+    lang.parse()
+        .unwrap_or_else(|_| unic_langid::langid!("en-US"))
+}
+
 fn get_lang(headers: &HeaderMap) -> String {
     headers
         .get(axum::http::header::ACCEPT_LANGUAGE)
@@ -155,19 +162,22 @@ where
             });
         }
         let token = &auth_header["Bearer ".len()..];
-        let (_, account_id_str) = crate::libs::crypto::jwt::decode(token, &state.jwt_secret)
-            .map_err(|e| LocalizedError {
-                status: StatusCode::UNAUTHORIZED,
-                message: {
-                    let args = HashMap::from([(
-                        Cow::Borrowed("reason"),
-                        FluentValue::from(e.to_string()),
-                    )]);
-                    LOCALES.lookup_with_args(&lang_id, "auth-invalid-token", &args)
-                },
-            })?;
+        let (_, claims) = crate::libs::crypto::jwt::decode::<crate::libs::crypto::jwt::Claims>(
+            token,
+            &state.jwt_secret,
+        )
+        .map_err(|e| LocalizedError {
+            status: StatusCode::UNAUTHORIZED,
+            message: {
+                let args = HashMap::from([(
+                    Cow::Borrowed("reason"),
+                    FluentValue::from(e.to_string()),
+                )]);
+                LOCALES.lookup_with_args(&lang_id, "auth-invalid-token", &args)
+            },
+        })?;
         Ok(AuthenticatedUser {
-            account_id: AccountId(account_id_str),
+            account_id: AccountId(claims.sub),
         })
     }
 }
@@ -192,7 +202,9 @@ pub struct CallbackQuery {
 
 #[derive(Deserialize)]
 pub struct SubmitFlagPayload {
-    pub team_id: Option<String>,
+    // NOTE: team is NOT taken from the client — it is derived from the
+    // authenticated account server-side (see submit_flag). Trusting a
+    // client-supplied team_id here was a scoreboard-forgery IDOR.
     pub flag: String,
 }
 
@@ -270,7 +282,12 @@ pub fn load_bracket_scripts() -> HashMap<String, String> {
 }
 
 pub fn validate_bracket_join_rhai(email: &str, username: &str, script_content: &str) -> bool {
-    let engine = rhai::Engine::new();
+    // Resource-capped engine: an admin bracket script can't infinite-loop a worker.
+    let mut engine = rhai::Engine::new();
+    engine.set_max_operations(100_000);
+    engine.set_max_call_levels(32);
+    engine.set_max_expr_depths(64, 64);
+    engine.set_max_string_size(16 * 1024);
     let mut scope = rhai::Scope::new();
     scope.push("email", email.to_string());
     scope.push("username", username.to_string());
@@ -317,7 +334,24 @@ where
         .unwrap_or("");
     let target_url = format!("http://{}{}", cluster_ip, path_and_query);
     let method = req.method().clone();
-    let headers = req.headers().clone();
+    let mut headers = req.headers().clone();
+    // Never forward the player's platform credentials to a challenge container —
+    // a hostile challenge could otherwise harvest JWTs/cookies. Also strip
+    // hop-by-hop headers that must not be proxied.
+    for h in [
+        "authorization",
+        "cookie",
+        "connection",
+        "keep-alive",
+        "proxy-authorization",
+        "proxy-authenticate",
+        "te",
+        "trailer",
+        "transfer-encoding",
+        "upgrade",
+    ] {
+        headers.remove(h);
+    }
     let body = req.into_body();
     let bytes = axum::body::to_bytes(body, 10 * 1024 * 1024)
         .await
@@ -497,7 +531,24 @@ where
         .into_response();
     }
 
-    let team_id = payload.team_id.map(TeamId);
+    // Identity is authoritative from the JWT: look up THIS user's real team.
+    // Never trust a client-supplied team_id (would let anyone credit any team).
+    let account = match state
+        .auth_service
+        .account_repo
+        .find_by_id(&user.account_id)
+        .await
+    {
+        Ok(Some(a)) => a,
+        _ => {
+            return LocalizedError {
+                status: StatusCode::UNAUTHORIZED,
+                message: ServiceError::Unauthorized.localize(&lang.0),
+            }
+            .into_response();
+        }
+    };
+    let team_id = account.team_id.clone();
     let res = state
         .solve_service
         .submit_flag(&challenge_id, team_id, user.account_id, &payload.flag, &ip)
@@ -580,7 +631,7 @@ where
         _ => {
             return LocalizedError {
                 status: StatusCode::NOT_FOUND,
-                message: LOCALES.lookup(&lang.0.parse().unwrap(), "ctf-team-not-found"),
+                message: LOCALES.lookup(&lang_id(&lang.0), "ctf-team-not-found"),
             }
             .into_response();
         }
@@ -588,13 +639,14 @@ where
     if team.captain_id != user.account_id {
         return LocalizedError {
             status: StatusCode::FORBIDDEN,
-            message: LOCALES.lookup(&lang.0.parse().unwrap(), "ctf-not-captain"),
+            message: LOCALES.lookup(&lang_id(&lang.0), "ctf-not-captain"),
         }
         .into_response();
     }
-    let lifespan = payload.lifespan_hours.unwrap_or(24); // TODO: is this safe?
-    let expires_at = chrono::Utc::now().timestamp() + (lifespan * 3600); // TODO: how fine
-    // control though?
+    // Clamp invite lifetime to 1 hour .. 1 week so a client can't mint a
+    // near-immortal (or zero/negative) invite token.
+    let lifespan = payload.lifespan_hours.unwrap_or(24).clamp(1, 168);
+    let expires_at = chrono::Utc::now().timestamp() + (lifespan * 3600);
     let token = generate_invite_token(&team.id.0, expires_at, &state.jwt_secret);
     Json(serde_json::json!({"token":token, "expires_at":expires_at})).into_response()
 }
@@ -616,7 +668,7 @@ where
         None => {
             return LocalizedError {
                 status: StatusCode::BAD_REQUEST,
-                message: LOCALES.lookup(&lang.0.parse().unwrap(), "ctf-invalid-invite-token"),
+                message: LOCALES.lookup(&lang_id(&lang.0), "ctf-invalid-invite-token"),
             }
             .into_response();
         }
@@ -631,7 +683,7 @@ where
         _ => {
             return LocalizedError {
                 status: StatusCode::NOT_FOUND,
-                message: LOCALES.lookup(&lang.0.parse().unwrap(), "ctf-team-not-found"),
+                message: LOCALES.lookup(&lang_id(&lang.0), "ctf-team-not-found"),
             }
             .into_response();
         }
@@ -653,7 +705,7 @@ where
         if !is_allowed {
             return LocalizedError {
                 status: StatusCode::FORBIDDEN,
-                message: LOCALES.lookup(&lang.0.parse().unwrap(), "ctf-bracket-domain-restricted"),
+                message: LOCALES.lookup(&lang_id(&lang.0), "ctf-bracket-domain-restricted"),
             }
             .into_response();
         }
@@ -714,33 +766,43 @@ where
     type Rejection = std::convert::Infallible;
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
-        // 1. Check X-Forwarded-For header
-        if let Some(ip) = parts
-            .headers
-            .get("x-forwarded-for")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|s| s.split(',').next())
-            .map(|s| s.trim().to_string())
-        {
-            return Ok(ClientIp(ip));
+        // SECURITY: only trust forwarding headers when we KNOW we sit behind a
+        // trusted reverse proxy (set TRUST_PROXY_HEADERS=1 in that deployment).
+        // Otherwise a client spoofs X-Forwarded-For to bypass IP rate limits and
+        // poison the stored submission IP. Default = use the real socket peer.
+        let trust_proxy = std::env::var("TRUST_PROXY_HEADERS")
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
+
+        if trust_proxy {
+            // Behind a trusted proxy: take the LAST hop it appended (the one the
+            // proxy itself saw), not the leftmost client-controlled value.
+            if let Some(ip) = parts
+                .headers
+                .get("x-forwarded-for")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|s| s.split(',').last())
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+            {
+                return Ok(ClientIp(ip));
+            }
+            if let Some(ip) = parts
+                .headers
+                .get("x-real-ip")
+                .and_then(|v| v.to_str().ok())
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+            {
+                return Ok(ClientIp(ip));
+            }
         }
 
-        // 2. Check X-Real-IP header
-        if let Some(ip) = parts
-            .headers
-            .get("x-real-ip")
-            .and_then(|v| v.to_str().ok())
-            .map(|s| s.trim().to_string())
-        {
-            return Ok(ClientIp(ip));
-        }
-
-        // 3. Fallback to Socket Connection Info
+        // Trusted source of truth: the actual TCP peer address.
         if let Some(ConnectInfo(addr)) = parts.extensions.get::<ConnectInfo<SocketAddr>>() {
             return Ok(ClientIp(addr.ip().to_string()));
         }
 
-        // 4. Default fallback
         Ok(ClientIp("127.0.0.1".to_string()))
     }
 }
@@ -1094,7 +1156,7 @@ mod tests {
 
         // 4. Test Join with valid .edu player 1
         let p1_auth_token =
-            crate::libs::crypto::jwt::encode(&AccountId("player1".to_string()), b"secret").unwrap();
+            crate::libs::crypto::jwt::issue("player1", 3600, b"secret").unwrap();
         let response = app
             .clone()
             .oneshot(
@@ -1115,7 +1177,7 @@ mod tests {
 
         // 5. Test Join with invalid Gmail player 2 (Should fail with 403 Forbidden)
         let p2_auth_token =
-            crate::libs::crypto::jwt::encode(&AccountId("player2".to_string()), b"secret").unwrap();
+            crate::libs::crypto::jwt::issue("player2", 3600, b"secret").unwrap();
         let response = app
             .oneshot(
                 Request::builder()

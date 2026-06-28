@@ -5,41 +5,35 @@ use crate::libs::types::accounts::{
     Account, AccountEmail, AccountId, AccountName, AccountRole, CtfTimeUserProfile,
 };
 use crate::libs::types::teams::{Team, TeamId, TeamName};
-use sha2::{Digest, Sha256};
+use argon2::{
+    Argon2,
+    password_hash::{
+        PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng,
+    },
+};
 use std::collections::HashMap;
 
-fn generate_salt() -> String {
-    uuid::Uuid::new_v4().simple().to_string()
+/// Hash a password with Argon2id. Output is a self-describing PHC string
+/// (`$argon2id$...$salt$hash`) — salt and cost params are embedded, so there is
+/// nothing else to store. Argon2 is memory-hard, so a leaked DB is not trivially
+/// GPU-crackable the way a fast SHA-256 hash would be.
+fn hash_password(password: &str) -> Result<String, ServiceError> {
+    let salt = SaltString::generate(&mut OsRng);
+    Argon2::default()
+        .hash_password(password.as_bytes(), &salt)
+        .map(|h| h.to_string())
+        .map_err(|_| ServiceError::InvalidRequest("auth-hash-failed".to_string()))
 }
 
-fn hash_password(password: &str, salt: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(salt.as_bytes());
-    hasher.update(password.as_bytes());
-    let hash_hex: String = hasher
-        .finalize()
-        .iter()
-        .map(|b| format!("{:02x}", b))
-        .collect();
-    format!("{}${}", salt, hash_hex)
-}
-
+/// Verify against a stored PHC string. Argon2's verify is constant-time, so this
+/// does not leak timing about how many characters matched.
 pub(crate) fn verify_password(password: &str, stored_hash: &str) -> bool {
-    let parts: Vec<&str> = stored_hash.split('$').collect();
-    if parts.len() != 2 {
-        return false;
+    match PasswordHash::new(stored_hash) {
+        Ok(parsed) => Argon2::default()
+            .verify_password(password.as_bytes(), &parsed)
+            .is_ok(),
+        Err(_) => false, // unparseable / legacy hash → reject
     }
-    let salt = parts[0];
-    let expected_hash = parts[1];
-    let mut hasher = Sha256::new();
-    hasher.update(salt.as_bytes());
-    hasher.update(password.as_bytes());
-    let hash_hex: String = hasher
-        .finalize()
-        .iter()
-        .map(|b| format!("{:02x}", b))
-        .collect();
-    hash_hex == expected_hash
 }
 
 pub struct AuthService<A, T>
@@ -70,8 +64,7 @@ where
             ));
         }
         let account_id = AccountId(uuid::Uuid::new_v4().to_string());
-        let salt = generate_salt();
-        let hashed = hash_password(password, &salt);
+        let hashed = hash_password(password)?;
         let account = Account {
             id: account_id,
             username: name,
@@ -103,7 +96,7 @@ where
                 "auth-invalid-credentials".to_string(),
             ));
         }
-        let token = jwt::encode(&account.id.0, &self.jwt_secret)
+        let token = jwt::issue(&account.id.0, 24 * 3600, &self.jwt_secret)
             .map_err(|e| ServiceError::OAuth(e.to_string()))?;
         Ok(token)
     }
@@ -226,7 +219,7 @@ where
                 new_account
             }
         };
-        let local_token = jwt::encode(&account.id.0, &self.jwt_secret)
+        let local_token = jwt::issue(&account.id.0, 24 * 3600, &self.jwt_secret)
             .map_err(|_| ServiceError::OAuth("auth-token-generation-failed".to_string()))?;
         Ok(local_token)
     }

@@ -77,6 +77,25 @@ impl fmt::Display for JwtError {
     }
 }
 
+/// Standard auth-token claims. `sub` = account id, `iat`/`exp` are unix seconds.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Claims {
+    pub sub: String,
+    pub iat: i64,
+    pub exp: i64,
+}
+
+/// Mint a signed auth token for `sub`, valid for `ttl_seconds` from now.
+pub fn issue(sub: &str, ttl_seconds: i64, secret: &[u8]) -> Result<String, JwtError> {
+    let now = chrono::Utc::now().timestamp();
+    let claims = Claims {
+        sub: sub.to_string(),
+        iat: now,
+        exp: now + ttl_seconds,
+    };
+    encode(&claims, secret)
+}
+
 pub fn encode<P: Serialize>(payload: &P, secret: &[u8]) -> Result<String, JwtError> {
     let header = Header {
         alg: "HS256".to_string(),
@@ -112,6 +131,20 @@ pub fn decode<P: DeserializeOwned>(token: &str, secret: &[u8]) -> Result<(Header
         return Err(JwtError::InvalidFormat);
     }
     let payload_json = jwt64_decode(payload_b64.as_bytes())?;
+    // Validate standard time claims (exp/nbf) if present, before trusting the token.
+    if let Ok(v) = serde_json::from_slice::<serde_json::Value>(&payload_json) {
+        let now = chrono::Utc::now().timestamp();
+        if let Some(exp) = v.get("exp").and_then(|x| x.as_i64()) {
+            if now >= exp {
+                return Err(JwtError::Expired);
+            }
+        }
+        if let Some(nbf) = v.get("nbf").and_then(|x| x.as_i64()) {
+            if now < nbf {
+                return Err(JwtError::NotYetValid);
+            }
+        }
+    }
     let payload: P = serde_json::from_slice(&payload_json).map_err(JwtError::InvalidJson)?;
     Ok((header, payload))
 }
