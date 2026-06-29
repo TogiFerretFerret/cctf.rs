@@ -10,6 +10,7 @@ admin-invalid-regex = Invalid flag regex pattern
 
 # Auth & OAuth errors
 auth-not-logged-in = User is not logged in
+auth-admin-required = This action requires administrator privileges
 auth-invalid-credentials = Invalid credentials
 auth-username-taken = Username is already taken
 auth-oauth-token-failed = Failed to retrieve OAuth token
