@@ -38,3 +38,17 @@ ctf-team-not-found = Team not found
 ctf-not-captain = Only the captain can generate invite tokens
 ctf-invalid-invite-token = Invalid or expires invite token
 ctf-bracket-domain-restricted = Your email domain is not permitted to join this division
+
+# Email / SMTP errors
+email-connect-failed = Could not connect to the SMTP server: {$reason}
+email-io-error = SMTP server connection error: {$reason}
+email-tls-failed = TLS negotiation with the SMTP server failed: {$reason}
+email-invalid-server-name = Invalid SMTP server name for TLS: {$reason}
+email-unexpected-eof = The SMTP server closed the connection unexpectedly
+email-invalid-response = The SMTP server sent a malformed response: {$reason}
+email-command-rejected = The SMTP server rejected the { $phase } command (code { $code })
+email-starttls-unsupported = The SMTP server does not advertise STARTTLS
+email-auth-unsupported = The SMTP server does not support AUTH LOGIN
+email-auth-failed = The SMTP server rejected the supplied credentials 
+email-auth-requires-tls = Refusing to send SMTP credentials over an unencrypted connection
+email-message-too-large = The message exceeds the maximum allowed size

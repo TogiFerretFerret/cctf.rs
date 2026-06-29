@@ -1,21 +1,19 @@
 use async_trait::async_trait;
+use fluent_templates::{Loader, fluent_bundle::FluentValue, static_loader};
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
+use std::collections::HashMap;
+use std::fmt;
+use unic_langid::{LanguageIdentifier, langid};
+
 pub mod client;
 pub mod server;
-pub use client::SmtpSenderClient;
-pub use server::SmtpCatcherServer;
+pub use client::{SmtpCredentials, SmtpSenderClient, TlsMode};
+pub use server::{Mailbox, SmtpCatcherServer};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Email {
-    pub id: String,
-    pub from: String,
-    pub to: String, 
-    pub subject: String,
-    pub body: String,
-    pub timestamp: i64,
-}
-
-#[async_trait]
-pub trait EmailService {
-    async fn send_email(&self, to: &str, subject: &str, body: &str) -> Result<(), String>;
+static_loader! {
+    pub static LOCALES = {
+        locales: "./locales",
+        fallback_language: "en-US",
+    };
 }
