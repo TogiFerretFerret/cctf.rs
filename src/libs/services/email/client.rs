@@ -118,3 +118,59 @@ impl AsyncWrite for SmtpStream {
         }
     }
 }
+
+impl SmtpStream {
+    async fn read_reply(&mut self) -> Result<(u16, Vec<String>), EmailError> {
+        let mut lines = Vec::new();
+        loop {
+            let mut line = String::new();
+            let n = self
+                .read_line(&mut line)
+                .await
+                .map_err(|e| EmailError::Io(e.to_string()))?;
+            if n == 0 {
+                return Err(EmailError::UnexpectedEof);
+            }
+            let trimmed = line.trim_end_matches(['\r', '\n']).to_string();
+            if trimmed.len() < 3 {
+                return Err(EmailError::InvalidResponse);
+            }
+            let code: u16 = trimmed[..3].parse().map_err(|_| EmailError::InvalidResponse)?;
+            let is_last = trimmed.len() == 3 || trimmed.as_bytes()[3] == b' ';
+            lines.push(trimmed);
+            if is_last {
+                return Ok((code, lines));
+            }
+        }
+    }
+    async fn send_line(&mut self, line: &str) -> Result<(), EmailError> {
+        self.write_all(line.as_bytes())
+            .await
+            .map_err(|e| EmailError::Io(e.to_string()))?;
+        self.write_all(b"\r\n")
+            .await
+            .map_err(|e| EmailError::Io(e.to_string()))?;
+        self.flush().await.map_err(|e| EmailError::Io(e.to_string()))?;
+        Ok(())
+    }
+    async fn command(
+        &mut self, 
+        line: &str,
+        expected: u16,
+        phase; &str,
+    ) -> Result<Vec<String>, EmailError> {
+        self.send_line(line).await?;
+        let (code, lines) = self.read_reply().await?;
+        if code != expected {
+            return Err(EmailError::Rejected {
+                code, 
+                phase: phase.to_string(),
+            });
+        }
+        Ok(lines)
+    }
+    async fn upgrade(self, hsot: &str) -> Result<SmtpStream, EmailError> {
+        let tcp = match self {
+            SmtpStream::Plain(buf) => buf.into_inner(),
+            SmtpStream::Tls(_) => {
+                return Err(EmailError::Tls("connection already secured".to_string())); // TODO: localize 
