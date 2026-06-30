@@ -169,10 +169,8 @@ where
         .map_err(|e| LocalizedError {
             status: StatusCode::UNAUTHORIZED,
             message: {
-                let args = HashMap::from([(
-                    Cow::Borrowed("reason"),
-                    FluentValue::from(e.to_string()),
-                )]);
+                let args =
+                    HashMap::from([(Cow::Borrowed("reason"), FluentValue::from(e.to_string()))]);
                 LOCALES.lookup_with_args(&lang_id, "auth-invalid-token", &args)
             },
         })?;
@@ -1155,8 +1153,7 @@ mod tests {
             generate_invite_token("team-col", chrono::Utc::now().timestamp() + 3600, b"secret");
 
         // 4. Test Join with valid .edu player 1
-        let p1_auth_token =
-            crate::libs::crypto::jwt::issue("player1", 3600, b"secret").unwrap();
+        let p1_auth_token = crate::libs::crypto::jwt::issue("player1", 3600, b"secret").unwrap();
         let response = app
             .clone()
             .oneshot(
@@ -1176,8 +1173,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
 
         // 5. Test Join with invalid Gmail player 2 (Should fail with 403 Forbidden)
-        let p2_auth_token =
-            crate::libs::crypto::jwt::issue("player2", 3600, b"secret").unwrap();
+        let p2_auth_token = crate::libs::crypto::jwt::issue("player2", 3600, b"secret").unwrap();
         let response = app
             .oneshot(
                 Request::builder()
