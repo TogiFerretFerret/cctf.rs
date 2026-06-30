@@ -157,7 +157,7 @@ impl SmtpStream {
         &mut self, 
         line: &str,
         expected: u16,
-        phase; &str,
+        phase: &str,
     ) -> Result<Vec<String>, EmailError> {
         self.send_line(line).await?;
         let (code, lines) = self.read_reply().await?;
@@ -174,3 +174,29 @@ impl SmtpStream {
             SmtpStream::Plain(buf) => buf.into_inner(),
             SmtpStream::Tls(_) => {
                 return Err(EmailError::Tls("connection already secured".to_string())); // TODO: localize 
+            }
+        };
+        let connector = build_tls_connector()?;
+        let server_name = ServerName::try_from(host.to_string())
+            .map_err(|e| EmailError::InvalidServerName(e.to_string()))?;
+        let tls = connector
+            .connect(server_name, tcp)
+            .await
+            .map_err(|e| EmailError::Tls(e.to_string()))?;
+        Ok(SmtpStream::Tls(BufReader::new(tls)))
+    }
+}
+
+fn build_tls_connector() -> Result<TlsConnector, EmailError> {
+    let mut roots = RootCertStore::empty();
+    roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+    let config = rustls::ClientConfig::builder_with_provider(Arc::new(
+            rustls::crypto::ring::default_provider(),
+        ))
+        .with_safe_default_protocol_versions()
+        .map_err(|e| EmailError::Tls(e.to_string()))?
+        .with_root_certificates(roots)
+        .with_no_client_auth();
+    Ok(TlsConnector::from(Arc::new(config)))
+}
+
