@@ -200,3 +200,119 @@ fn build_tls_connector() -> Result<TlsConnector, EmailError> {
     Ok(TlsConnector::from(Arc::new(config)))
 }
 
+fn ehlo_supports(caps: &[String], token: &str) -> bool {
+    caps.iter().any(|l| {
+        let text = if l.len() > 4 { &l[4..] } else { "" };
+        text.split_whitespace()
+            .next()
+            .map(|w| w.eq_ignore_ascii_case(token))
+            .unwrap_or(false)
+        })
+}
+
+fn ehlo_supports_auth_login(caps: &[String]) -> bool {
+    caps.iter().any(|l| {
+        let text = if l.len() > 4 { &l[4..] } else { "" };
+        let mut parts = text.split_whitespace();
+        matches!(parts.next(), Some(w) if w.eq_ignore_ascii_case("AUTH"))
+            && parts.any(|m| m.eq_ignore_ascii_case("LOGIN"))
+    })
+}
+
+fn header_safe(value: &str) -> String {
+    value.chars().filter(|&c| c != '\r' && c != '\n').collect()
+}
+
+fn build_message(from: &str, to: &str, subject: &str, body: &str) -> String {
+    let date = chrono::Utc::now().to_rfc2822();
+    let domain = match from.rsplit_once('@') {
+        Some((_, d)) if !d.is_empty() => d,
+        _ => "localhost",
+    };
+    let message_id = format!("<{}@{}>", uuid::Uuid::new_v4(), domain);
+    let mut out = String::new();
+    out.push_str(&format!("From: {}\r\n", header_safe(from)));
+    out.push_str(&format!("To: {}\r\n", header_safe(to)));
+    out.push_str(&format!("Subject: {}\r\n", header_safe(subject)));
+    out.push_str(&format!("Date: {}\r\n", date));
+    out.push_str(&format!("Message-ID: {}\r\n", message_id));
+    out.push_str("MIME-Version: 1.0\r\n");
+    out.push_str("Content-Type: text/plain; charset=utf-8\r\n");
+    out.push_str("\r\n");
+    for raw_line in body.split('\n') {
+        let line = raw_line.strip_suffix('\r').unwrap_or(raw_line);
+        if line.starts_with('.') {
+            out.push('.'); // rfc 5321 4.5.2: dot-stuffing
+        }
+        out.push_str(line);
+        out.push_str("\r\n");
+    }
+    out
+}
+
+#[async_trait]
+impl EmailService for SmtpSenderClient {
+    async fn send_email(&self, to: &str, subject: &str, body: &str) -> Result<(), EmailError> {
+        if self.credentials.is_some() && self.tls_mode == TlsMode::None {
+            return Err(EmailError::AuthRequiresTls);
+        }
+        let tcp = TcpStream::connect((self.smtp_host.as_str(), self.smtp_port))
+            .await
+            .map_err(|e| EmailError::Connect(e.to_string()))?;
+        let mut stream = SmtpStream::Plain(BufReader::new(tcp));
+        let (code, _) = stream.read_reply().await?;
+        if code != 220 {
+            return Err(EmailError::Rejected { code, phase: "greeting".to_string() });
+        }
+        let ehlo = format!("EHLO {}", self.ehlo_name);
+        let mut caps = stream.command(&ehlo, 250, "EHLO").await?;
+        if self.tls_mode == TlsMode::StartTls {
+            if !ehlo_supports(&caps, "STARTTLS") {
+                return Err(EmailError::StartTlsUnsupported);
+            }
+            stream.command("STARTTLS", 220, "STARTTLS").await?;
+            stream = stream.upgrade(&self.smtp_host).await?;
+            caps = stream.command(&ehlo, 250, "EHLO").await?;
+        }
+        if let Some(creds) = &self.credentials {
+            if !ehlo_supports_auth_login(&caps) {
+                return Err(EmailError::AuthUnsupported);
+            }
+            stream.command("AUTH LOGIN", 334, "AUTH").await?;
+            stream
+                .command(&BASE64_STANDARD.encode(creds.username.as_bytes()), 334, "AUTH username")
+                .await?;
+            stream
+                .send_line(&BASE64_STANDARD.encode(creds.password.as_bytes()))
+                .await?;
+            let (code, _) = stream.read_reply().await?;
+            if code != 235 {
+                return Err(EmailError::AuthFailed);
+            }
+        }
+        stream
+            .command(&format!("MAIL FROM:<{}>", self.from_email), 250, "MAIL FROM")
+            .await?;
+        stream
+            .command(&format!("RCPT TO:<{}>", to), 250, "RCPT TO")
+            .await?;
+        stream.command("DATA", 354, "DATA").await?;
+        let message = build_message(&self.from_email, to, subject, body);
+        stream
+            .write_all(message.as_bytes())
+            .await
+            .map_err(|e| EmailError::Io(e.to_string()))?;
+        if !message.ends_with("\r\n") {
+            stream.write_all(b"\r\n").await.map_err(|e| EmailError::Io(e.to_string()))?;
+        }
+        stream.write_all(b".\r\n").await.map_err(|e| EmailError::Io(e.to_string()))?;
+        stream.flush().await.map_err(|e| EmailError::Io(e.to_string()))?;
+        let (code, _) = stream.read_reply().await?;
+        if code != 250 {
+            return Err(EmailError::Rejected { code, phase: "message".to_string() });
+        }
+        let _ = stream.command("QUIT", 221, "QUIT").await;
+        Ok(())
+    }
+}
+

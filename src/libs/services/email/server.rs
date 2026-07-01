@@ -78,7 +78,8 @@ async fn read_data<R: AsyncBufReadExt + Unpin>(r: &mut R) -> Result<String, Emai
         if n==0 {
             return Err(EmailError::UnexpectedEof);
         }
-        let trimmed == "." {
+        let trimmed = line.trim_end_matches(['\r', '\n']);
+        if trimmed == "." {
             break;
         }
         let unstuffed = trimmed.strip_prefix('.').unwrap_or(trimmed);
@@ -179,7 +180,7 @@ async fn handle_connection(
                     continue;
                 }
                 write_line(&mut stream, "354 End data with <CR><LF>.<CR><LF>").await?;
-                let raw = read_data(*mut stream).await?;
+                let raw = read_data(&mut stream).await?;
                 let email = parse_email(mail_from.clone().unwrap_or_default(), &rcpts, &raw);
                 mailbox.lock().await.push(email);
                 mail_from = None;
