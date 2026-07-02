@@ -9,9 +9,6 @@ use unic_langid::{LanguageIdentifier, langid};
 pub mod client;
 pub mod http;
 pub mod server;
-pub use client::{SmtpCredentials, SmtpSenderClient, TlsMode};
-pub use http::{HttpCatcher, HttpCatcherConfig};
-pub use server::{Mailbox, SmtpCatcherServer};
 
 static_loader! {
     pub static LOCALES = {
