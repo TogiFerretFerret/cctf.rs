@@ -20,7 +20,7 @@ impl<C: ConfigRepo> ConfigService<C> {
 mod tests {
     use super::*;
     use crate::libs::repos::RepoError;
-    use asymc_trait::async_trait;
+    use async_trait::async_trait;
     use tokio::sync::Mutex;
 
     #[derive(Default)]
@@ -61,7 +61,7 @@ mod tests {
         let cfg = CtfConfig {
             start_time: Some(100),
             end_time: Some(200),
-            freeze_time: Some(100),
+            freeze_time: Some(180),
             ..Default::default()
         };
         assert!(!cfg.is_running(50));
