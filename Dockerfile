@@ -1,28 +1,27 @@
 # syntax=docker/dockerfile:1
 
-########## builder ##########
-FROM rust:1-bookworm AS builder
+########## chef base ##########
+FROM rust:1-bookworm AS chef
+RUN cargo install cargo-chef --locked
 WORKDIR /app
 
-# reqwest's rustls uses aws-lc-rs; building aws-lc-sys needs cmake + a C
-# compiler (gcc/make already ship in the rust image). No OpenSSL anywhere.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        cmake \
+########## plan — capture the dependency recipe ##########
+FROM chef AS planner
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
+
+########## build ##########
+FROM chef AS builder
+# reqwest's rustls pulls aws-lc-rs; building aws-lc-sys needs cmake + a C compiler
+# (gcc/make already ship in the rust image). No OpenSSL anywhere.
+RUN apt-get update && apt-get install -y --no-install-recommends cmake \
     && rm -rf /var/lib/apt/lists/*
-
-# 1) Cache the dependency graph: compile a stub crate with only the manifests.
-#    This layer only busts when Cargo.toml / Cargo.lock change.
-COPY Cargo.toml Cargo.lock ./
-RUN mkdir -p src \
-    && echo 'fn main() {}' > src/main.rs \
-    && echo '' > src/lib.rs \
-    && cargo build --release --locked \
-    && rm -rf src
-
-# 2) Build the real binary — dependencies stay cached from step 1.
-COPY src ./src
-COPY locales ./locales
-RUN cargo build --release --locked
+# Cook ONLY the dependencies — this layer is cached until recipe.json changes.
+COPY --from=planner /app/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
+# Real sources now; only our crate recompiles (deps reused from the cooked layer).
+COPY . .
+RUN cargo build --release
 
 ########## docs (built via the Makefile → single self-contained file) ##########
 FROM node:22-alpine AS docs
@@ -36,17 +35,15 @@ RUN make build-docs
 FROM debian:bookworm-slim AS runtime
 WORKDIR /app
 
-# reqwest verifies outbound HTTPS (CTFtime OAuth) against the system trust store
-# via rustls-platform-verifier, so ca-certificates is required. No OpenSSL.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates \
+# ca-certificates for outbound HTTPS (CTFtime OAuth) via rustls-platform-verifier.
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/target/release/cctf-rs /usr/local/bin/cctf-rs
-# Fluent's static_loader! and load_bracket_scripts() resolve paths relative to
-# the process CWD at runtime, so ./locales must sit next to where we run.
+# Fluent's static_loader! + load_bracket_scripts() + the openapi spec resolve
+# relative to CWD at runtime, so these must sit next to where we run.
 COPY --from=builder /app/locales ./locales
-# Built docs viewer (single self-contained index.html), served at /docs.
+COPY --from=builder /app/openapi.yaml ./openapi.yaml
 COPY --from=docs /build/apidocs/dist ./apidocs/dist
 
 EXPOSE 8080
