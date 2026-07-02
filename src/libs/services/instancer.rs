@@ -449,6 +449,7 @@ mod tests {
             files: Vec::new(),
             tags: Vec::new(),
             requirements: Vec::new(),
+            deployment: crate::libs::types::challenges::ChallengeDeployment::None,
             team_consensus: false,
         };
         ChallengeRepo::save(store.as_ref(), challenge)
@@ -597,6 +598,7 @@ mod tests {
             files: Vec::new(),
             tags: Vec::new(),
             requirements: Vec::new(),
+            deployment: crate::libs::types::challenges::ChallengeDeployment::None,
             team_consensus: true,
         };
         ChallengeRepo::save(store.as_ref(), challenge)
@@ -667,6 +669,7 @@ mod tests {
             files: Vec::new(),
             tags: Vec::new(),
             requirements: Vec::new(),
+            deployment: crate::libs::types::challenges::ChallengeDeployment::None,
             team_consensus: false,
         };
         ChallengeRepo::save(store.as_ref(), partial_challenge)
@@ -731,6 +734,7 @@ mod tests {
             files: Vec::new(),
             tags: Vec::new(),
             requirements: Vec::new(),
+            deployment: crate::libs::types::challenges::ChallengeDeployment::None,
             team_consensus: false,
         };
         ChallengeRepo::save(store.as_ref(), script_challenge)

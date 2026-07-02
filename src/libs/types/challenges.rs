@@ -55,6 +55,16 @@ pub enum ChallengeRequirement {
     Solve(String),
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub enum ChallengeDeployment {
+    #[default]
+    None,
+    Shared {
+        url: String,
+    },
+    Instanced,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Challenge {
     pub id: String,
@@ -70,4 +80,6 @@ pub struct Challenge {
     pub requirements: Vec<ChallengeRequirement>,
     #[serde(default)]
     pub team_consensus: bool,
+    #[serde(default)]
+    pub deployment: ChallengeDeployment,
 }

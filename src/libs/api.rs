@@ -2,11 +2,16 @@ use crate::libs::repos::{AccountRepo, ChallengeRepo, SubmissionRepo, TeamRepo};
 use crate::libs::services::{
     AuthService, OAuthService, ScoreboardService, ServiceError, SolveService,
 };
+use crate::libs::services::solve::calculate_dynamic_points;
 use crate::libs::types::accounts::{AccountId, AccountRole};
+use crate::libs::types::challenges::{
+    Challenge, ChallengeDeployment, ChallengeFile, ChallengeRequirement, ChallengeTag, ScoringMode,
+};
+use crate::libs::types::solves::Submission;
 use crate::libs::types::teams::TeamId;
 use axum::{
     Json, Router,
-    extract::{ConnectInfo, FromRequestParts, Path, Request, State},
+    extract::{ConnectInfo, FromRequestParts, Path, Query, Request, State},
     http::{HeaderMap, StatusCode, request::Parts},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -18,6 +23,7 @@ use serde::Deserialize;
 use sha2::Sha256;
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -708,6 +714,267 @@ where
     StatusCode::OK.into_response()
 }
 
+#[derive(serde::Serialize)]
+pub struct PublicHint {
+    pub cost: u32,
+}
+
+#[derive(serde::Serialize)]
+pub struct PublicChallenge {
+    pub id: String,
+    pub title: String,
+    pub description: String,
+    pub category: String,
+    pub points: u32,
+    pub tags: Vec<ChallengeTag>,
+    pub files: Vec<ChallengeFile>,
+    pub hints: Vec<PublicHint>,
+    pub requirements: Vec<ChallengeRequirement>,
+    pub connection_info: Option<String>,
+    pub solved: bool,
+}
+
+#[derive(Deserialize)]
+pub struct DeleteChallengeQuery {
+    #[serde(default)]
+    pub delete_solves: bool,
+}
+
+fn challenge_solve_counts(submissions: &[Submission]) -> HashMap<String, HashSet<String>> {
+    let mut counts: HashMap<String, HashSet<String>> = HashMap::new();
+    for sub in submissions {
+        if sub.is_correct {
+            let solver = sub
+                .team_id
+                .as_ref()
+                .map(|t| t.0.clone())
+                .unwrap_or_else(|| sub.account_id.0.clone());
+            counts
+                .entry(sub.challenge_id.clone())
+                .or_default()
+                .insert(solver);
+        }
+    }
+    counts
+}
+
+fn current_points(challenge: &Challenge, solve_count: u32) -> u32 {
+    match challenge.points.mode {
+        ScoringMode::PointValue | ScoringMode::PointAttribution => {
+            challenge.points.equation.parse::<u32>().unwrap_or(100)
+        }
+        ScoringMode::DynamicDecay {
+            initial,
+            minimum,
+            decay,
+        } => calculate_dynamic_points(initial, minimum, decay, solve_count.max(1)),
+    }
+}
+
+fn challenge_solved_by(
+    challenge_id: &str,
+    submissions: &[Submission],
+    viewer_team: Option<&TeamId>,
+    viewer_account: &AccountId,
+) -> bool {
+    submissions.iter().any(|s| {
+        s.is_correct
+            && s.challenge_id == challenge_id
+            && match viewer_team {
+                Some(team) => s.team_id.as_ref() == Some(team),
+                None => &s.account_id == viewer_account,
+            }
+    })
+}
+
+fn to_public_challenge(challenge: &Challenge, solve_count: u32, solved: bool) -> PublicChallenge {
+    let connection_info = match &challenge.deployment {
+        ChallengeDeployment::Shared { url } => Some(url.clone()),
+        _ => None,
+    };
+    PublicChallenge {
+        id: challenge.id.clone(),
+        title: challenge.title.0.clone(),
+        description: challenge.description.0.0.clone(),
+        category: challenge.category.0.clone(),
+        points: current_points(challenge, solve_count),
+        tags: challenge.tags.clone(),
+        files: challenge.files.clone(),
+        hints: challenge
+            .hints
+            .iter()
+            .map(|h| PublicHint { cost: h.cost })
+            .collect(),
+        requirements: challenge.requirements.clone(),
+        connection_info,
+        solved,
+    }
+}
+
+pub async fn list_challenges<A, T, C, S>(
+    State(state): State<AppState<A, T, C, S>>,
+    user: AuthenticatedUser,
+    lang: PreferredLang,
+) -> axum::response::Response
+where
+    A: AccountRepo + Send + Sync + 'static,
+    T: TeamRepo + Send + Sync + 'static,
+    C: ChallengeRepo + Send + Sync + 'static,
+    S: SubmissionRepo + Send + Sync + 'static,
+{
+    let viewer_team = match state.auth_service.account_repo.find_by_id(&user.account_id).await {
+        Ok(Some(a)) => a.team_id,
+        _ => None,
+    };
+    let challenges = match state.solve_service.challenge_repo.find_all().await {
+        Ok(c) => c,
+        Err(e) => {
+            return LocalizedError {
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+                message: e.localize(&lang.0),
+            }
+            .into_response();
+        }
+    };
+    let submissions = state
+        .solve_service
+        .submission_repo
+        .find_all()
+        .await
+        .unwrap_or_default();
+    let counts = challenge_solve_counts(&submissions);
+    let public: Vec<PublicChallenge> = challenges
+        .iter()
+        .map(|ch| {
+            let solve_count = counts.get(&ch.id).map(|s| s.len()).unwrap_or(0) as u32;
+            let solved =
+                challenge_solved_by(&ch.id, &submissions, viewer_team.as_ref(), &user.account_id);
+            to_public_challenge(ch, solve_count, solved)
+        })
+        .collect();
+    Json(public).into_response()
+}
+
+pub async fn get_challenge<A, T, C, S>(
+    State(state): State<AppState<A, T, C, S>>,
+    user: AuthenticatedUser,
+    lang: PreferredLang,
+    Path(challenge_id): Path<String>,
+) -> axum::response::Response
+where
+    A: AccountRepo + Send + Sync + 'static,
+    T: TeamRepo + Send + Sync + 'static,
+    C: ChallengeRepo + Send + Sync + 'static,
+    S: SubmissionRepo + Send + Sync + 'static,
+{
+    let viewer_team = match state.auth_service.account_repo.find_by_id(&user.account_id).await {
+        Ok(Some(a)) => a.team_id,
+        _ => None,
+    };
+    let challenge = match state.solve_service.challenge_repo.find_by_id(&challenge_id).await {
+        Ok(Some(c)) => c,
+        Ok(None) => {
+            return LocalizedError {
+                status: StatusCode::NOT_FOUND,
+                message: LOCALES.lookup(&lang_id(&lang.0), "ctf-challenge-not-found"),
+            }
+            .into_response();
+        }
+        Err(e) => {
+            return LocalizedError {
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+                message: e.localize(&lang.0),
+            }
+            .into_response();
+        }
+    };
+    let submissions = state
+        .solve_service
+        .submission_repo
+        .find_all()
+        .await
+        .unwrap_or_default();
+    let counts = challenge_solve_counts(&submissions);
+    let solve_count = counts.get(&challenge_id).map(|s| s.len()).unwrap_or(0) as u32;
+    let solved =
+        challenge_solved_by(&challenge_id, &submissions, viewer_team.as_ref(), &user.account_id);
+    Json(to_public_challenge(&challenge, solve_count, solved)).into_response()
+}
+
+pub async fn create_challenge<A, T, C, S>(
+    State(state): State<AppState<A, T, C, S>>,
+    _admin: AdminUser,
+    lang: PreferredLang,
+    Json(challenge): Json<Challenge>,
+) -> axum::response::Response
+where
+    A: AccountRepo + Send + Sync + 'static,
+    T: TeamRepo + Send + Sync + 'static,
+    C: ChallengeRepo + Send + Sync + 'static,
+    S: SubmissionRepo + Send + Sync + 'static,
+{
+    match state.solve_service.challenge_repo.save(challenge.clone()).await {
+        Ok(()) => (StatusCode::CREATED, Json(challenge)).into_response(),
+        Err(e) => LocalizedError {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: e.localize(&lang.0),
+        }
+        .into_response(),
+    }
+}
+
+pub async fn update_challenge<A, T, C, S>(
+    State(state): State<AppState<A, T, C, S>>,
+    _admin: AdminUser,
+    lang: PreferredLang,
+    Path(challenge_id): Path<String>,
+    Json(mut challenge): Json<Challenge>,
+) -> axum::response::Response
+where
+    A: AccountRepo + Send + Sync + 'static,
+    T: TeamRepo + Send + Sync + 'static,
+    C: ChallengeRepo + Send + Sync + 'static,
+    S: SubmissionRepo + Send + Sync + 'static,
+{
+    challenge.id = challenge_id;
+    match state.solve_service.challenge_repo.update(challenge.clone()).await {
+        Ok(()) => Json(challenge).into_response(),
+        Err(e) => LocalizedError {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: e.localize(&lang.0),
+        }
+        .into_response(),
+    }
+}
+
+pub async fn delete_challenge<A, T, C, S>(
+    State(state): State<AppState<A, T, C, S>>,
+    _admin: AdminUser,
+    lang: PreferredLang,
+    Path(challenge_id): Path<String>,
+    Query(query): Query<DeleteChallengeQuery>,
+) -> axum::response::Response
+where
+    A: AccountRepo + Send + Sync + 'static,
+    T: TeamRepo + Send + Sync + 'static,
+    C: ChallengeRepo + Send + Sync + 'static,
+    S: SubmissionRepo + Send + Sync + 'static,
+{
+    match state
+        .solve_service
+        .challenge_repo
+        .delete(&challenge_id, query.delete_solves)
+        .await
+    {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => LocalizedError {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: e.localize(&lang.0),
+        }
+        .into_response(),
+    }
+}
+
 pub fn create_router<A, T, C, S>(state: AppState<A, T, C, S>) -> Router
 where
     A: AccountRepo + Send + Sync + 'static,
@@ -722,6 +989,16 @@ where
         .route(
             "/api/v1/auth/oauth/callback",
             get(oauth_callback::<A, T, C, S>),
+        )
+        .route(
+            "/api/v1/challenges",
+            get(list_challenges::<A, T, C, S>).post(create_challenge::<A, T, C, S>),
+        )
+        .route(
+            "/api/v1/challenges/{id}",
+            get(get_challenge::<A, T, C, S>)
+                .patch(update_challenge::<A, T, C, S>)
+                .delete(delete_challenge::<A, T, C, S>),
         )
         .route(
             "/api/v1/challenges/{id}/submit",
