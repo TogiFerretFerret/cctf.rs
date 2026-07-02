@@ -11,7 +11,7 @@ interface Op {
 	description?: string;
 	parameters?: Param[];
 	requestBody?: { content?: Record<string, { schema?: Schema }> };
-	responses?: REcord<string, { description?: string; content?: Record<string, { schema?: Schema }> }>;
+	responses?: Record<string, { description?: string; content?: Record<string, { schema?: Schema }> }>;
 	security?: unknown[];
 }
 
@@ -96,7 +96,7 @@ function renderOp(path: string, method: string, op: Op): HTMLElement {
 	}
 	const reqSchema = op.requestBody?.content?.["application/json"]?.schema;
 	if (reqSchema) {
-		body.push(h("h4", {}, "Request body"), h("code", { class: "typelist" }, typeOf(reqSchema)), propsTable(reqSchema));
+		body.push(h("h4", {}, "Request body"), h("code", { class: "typeline" }, typeOf(reqSchema)), propsTable(reqSchema));
 	}
 	if (op.responses) {
 		body.push(h("h4", {}, "Responses"));
@@ -111,11 +111,14 @@ function renderOp(path: string, method: string, op: Op): HTMLElement {
 	}
 	const authed = !(Array.isArray(op.security) && op.security.length === 0);
 	return h("section", { class: "op", id: `op-${method}-${slug(path)}` },
-			 h("span", { class: `badge ${method}` }, method.toUpperCase()),
-			 h("code", { class: "path" }, path),
-			 authed ? h("span", { class: "lock", title: "Requires auth" }, "🔒") : null,
-			 h("span", { class: "op-summary" }, op.summary ?? ""),
-			);
+		h("div", { class: "op-head" },
+			h("span", { class: `badge ${method}` }, method.toUpperCase()),
+			h("code", { class: "path" }, path),
+			authed ? h("span", { class: "lock", title: "Requires auth" }, "🔒") : null,
+			h("span", { class: "op-summary" }, op.summary ?? ""),
+		),
+		h("div", { class: "op-body" }, ...body.filter((n): n is Node => n != null)),
+	);
 }
 
 function opsByTag(): Map<string, { path: string; method: string; op: Op }[]> {
@@ -136,7 +139,7 @@ function langSwitcher(): HTMLSelectElement {
 	const sel = h("select", { class: "lang", "aria-label": "Language" }) as HTMLSelectElement;
 	const current = new URLSearchParams(location.search).get("lang") ?? "en-US";
 	for (const l of LANGS) {
-		const o = h("option", { value: l.code }, l.label) as HTMLOptionElement;
+		const o = h("option", { value: l.code }, l.name) as HTMLOptionElement;
 		if (l.code===current) o.selected = true;
 		sel.append(o);
 	}
@@ -184,7 +187,7 @@ function render(): void {
 	if (Object.keys(schemas).length) {
 		const sec = h("section", { class: "tag-section" }, h("h2", { id: "schemas" }, "Schemas"));
 		for (const [name, schema] of Object.entries(schemas)) {
-			sec.append(h("section", { class: "op", id: `scham-${name}` },
+			sec.append(h("section", { class: "op", id: `schema-${name}` },
 				 h("div", { class: "op-head" }, h("code", { class: "path" }, name),
 				   h("span", { class: "op-summary" }, typeOf(schema))),
 				 h("div", { class: "op-body" },
