@@ -82,6 +82,5 @@ pub mod scoreboard;
 pub mod solve;
 
 pub use auth::{AuthService, OAuthService};
-pub use config::ConfigService;
 pub use scoreboard::ScoreboardService;
 pub use solve::SolveService;
