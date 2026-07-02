@@ -7,7 +7,7 @@ modularity), so `cctf.rs` is a **headless API/platform**. This tracker covers ba
 capability only — theme/UI/rendering is Astro's job.
 
 Legend: `[x]` done · `[~]` partial · `[ ]` todo · **➕** = already beyond CTFd core
-Last reconciled: 2026-07-01
+Last reconciled: 2026-07-02
 
 ---
 
@@ -57,6 +57,11 @@ Last reconciled: 2026-07-01
 - [ ] Max attempts (+ enforcement)
 - [ ] Challenge ordering
 - [x] Per-team dynamic instancing + subdomain reverse proxy ➕ (beyond CTFd core)
+- [x] Shared HTTP deployment (`ChallengeDeployment::Shared { url }` — one platform endpoint, no instancer)
+- [x] Admin challenge CRUD (`AdminUser`-gated) + delete with optional solve-wipe
+- [x] Player challenge view (`PublicChallenge` — flag & hint-content stripped)
+- [x] Per-user (team-aware) solved status
+- [x] Live decayed points in challenge view
 
 ## Flags & Scoring
 - [x] Static flags (constant-time compare ➕)
@@ -85,7 +90,7 @@ Last reconciled: 2026-07-01
 - [x] Tie-break (last-solve / accuracy)
 - [x] Brackets on scoreboard
 - [x] CTFtime export
-- [~] Freeze (logic done in `ScoreboardService.freeze_time`; wire from config at Phase 0)
+- [x] Freeze (config-driven: `ScoreboardService.freeze_time` fed from `ConfigService`)
 - [ ] Visibility toggle (public / private / hidden / admin-only)
 - [ ] Score progression data endpoint (chart itself is Astro)
 
@@ -110,12 +115,17 @@ Last reconciled: 2026-07-01
 - [ ] Templated email bodies
 
 ## Admin (backend)
-- [ ] Admin authz middleware (role exists; no gate)
-- [ ] Challenge CRUD endpoints (repo `save` exists; no route/authz)
+- [x] Admin authz (`AdminUser` extractor — role-gated, localized 403)
+- [x] Challenge CRUD endpoints (`AdminUser`-gated create/update/delete)
 - [ ] User / team management
 - [ ] Submissions browse
 - [ ] Statistics
 - [ ] Event reset
+
+## API
+- [x] REST endpoints (auth, teams, scoreboard, challenges, submit) served + integration-tested
+- [ ] **OpenAPI / Swagger spec — NOT compatible yet.** CTFd ships one; needed for a typed Astro client + external tooling. Candidate: `utoipa` annotations on handlers/DTOs.
+- [ ] API / access tokens (also under Auth)
 
 ## Import / Export / Backup
 - [x] CTFtime scoreboard export
@@ -137,7 +147,7 @@ Last reconciled: 2026-07-01
 - [x] Postgres storage (`PgStore`) + schema init
 - [x] k8s instancer: pod/svc spawn, timed reaping, lifespan renewal ➕
 - [x] lib + bin crate split (0 warnings), doctests + unit tests green
-- [ ] **`main.rs` server bootstrap (KEYSTONE)** — axum serve, `.env` config, `AppState`, merge HttpCatcher router, wire freeze from config, admin authz
+- [x] **`main.rs` server bootstrap** — axum serve, `.env`, `AppState`, merged HttpCatcher router, freeze from config
 - [~] Docker deploy
 
 ---
@@ -151,5 +161,7 @@ SMTP catcher + Cloudflare HTTP email ingress.
 - **First blood**: not implemented. Plan = swap the numeric `equation` for rhai-evaluated scoring
   (reuse the sandboxed engine in `flags.rs`), enabling first-blood bonuses + arbitrary curves in one move.
 - **Hints / files**: data models exist; unlock/deduction logic, upload/storage, and endpoints are unbuilt.
-- **Freeze**: mechanism done; feed `freeze_time` from `ConfigService` at `ScoreboardService` construction (Phase 0).
+- **Freeze**: done — `ScoreboardService.freeze_time` fed from `ConfigService` in `main.rs`.
 - **Frontend**: separate Astro app — everything here is a headless API it consumes.
+- **Tests**: 16 unit + 8 doctests (always run) + Postgres-gated integration in `tests/pg.rs` & `tests/http.rs` (`#[ignore]`, need `TEST_DATABASE_URL` + fresh schema).
+- **OpenAPI**: not implemented — the API is hand-rolled axum with no spec generation. Real gap vs CTFd; blocks a typed frontend client.
