@@ -5,7 +5,7 @@
 DATABASE_URL      ?= postgres://cctf:cctf@localhost:5432/cctf
 TEST_DATABASE_URL ?= $(DATABASE_URL)
 
-.PHONY: help build build-server build-docs test test-int check clippy fmt fmt-check run docs-dev db db-reset db-down docker docker-up nuke clean
+.PHONY: help build build-server build-docs test test-int check clippy fmt fmt-check run docs-dev db db-reset db-down docker docker-up logs nuke clean
 
 help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -60,8 +60,11 @@ db-down: ## Stop the compose stack
 docker: ## Build the full container image
 	docker compose build
 
-docker-up: ## Build + run the full stack
-	docker compose up --build
+docker-up: ## Build + run the full stack (detached)
+	docker compose up --build -d
+
+logs: ## Follow logs from the running stack (Ctrl-C to detach)
+	docker compose logs -f
 
 nuke: ## Tear down the full stack: containers, DB volume, and built image
 	docker compose down -v --rmi local --remove-orphans
