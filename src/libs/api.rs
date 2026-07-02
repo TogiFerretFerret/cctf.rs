@@ -1023,7 +1023,7 @@ pub const API_ROUTES: &[(&str, &str)] = &[
 
 const OPENAPI_YAML: &str = include_str!("../../openapi.yaml");
 static OPENAPI_JSON: LazyLock<String> = LazyLock::new(|| {
-    let doc: serde_json::Value = 
+    let doc: serde_json::Value =
         serde_norway::from_str(OPENAPI_YAML).expect("openapi.yaml must be valid YAML");
     serde_json::to_string(&doc).expect("serialize openapi json")
 });
@@ -1089,11 +1089,11 @@ where
             get(export_scoreboard::<A, T, C, S>),
         )
         .route("/api/v1/teams/invite", post(create_invite::<A, T, C, S>))
-        .route("/api/v1/teams/join", post(join_team::<A, T, C), S>))
+        .route("/api/v1/teams/join", post(join_team::<A, T, C, S>))
         .route("/openapi.yaml", get(openapi_yaml))
         .route("/openapi.json", get(openapi_json))
         .route("/docs", get(api_docs))
-        .fallbac)k(proxy_handler::<A, T, C, S>)
+        .fallback(proxy_handler::<A, T, C, S>)
         .with_state(state)
 }
 
