@@ -13,6 +13,9 @@ use cctf_rs::libs::{
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenvy::dotenv().ok();
+    tokio_rustls::rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("failed to install rustls ring provider");
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL is required");
     let jwt_secret = std::env::var("JWT_SECRET")
         .expect("JWT_SECRET is required")
