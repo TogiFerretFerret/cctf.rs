@@ -1,5 +1,7 @@
 use super::RepoError;
-use super::traits::{AccountRepo, ChallengeRepo, InstanceRepo, SubmissionRepo, TeamRepo};
+use super::traits::{
+    AccountRepo, ChallengeRepo, ConfigRepo, InstanceRepo, SubmissionRepo, TeamRepo,
+};
 use crate::libs::types::accounts::{Account, AccountEmail, AccountId, AccountName, AccountRole};
 use crate::libs::types::challenges::{Challenge, ScoringMode};
 use crate::libs::types::solves::Submission;
@@ -90,6 +92,14 @@ impl PgStore {
                 cluster_ip VARCHAR(45) NOT NULL, \
                 created_at BIGINT NOT NULL, \
                 expires_at BIGINT NOT NULL \
+             );",
+        )
+        .execute(&self.pool)
+        .await?;
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS ctf_config ( \
+                id INT PRIMARY KEY, \
+                data JSONB NOT NULL \
              );",
         )
         .execute(&self.pool)

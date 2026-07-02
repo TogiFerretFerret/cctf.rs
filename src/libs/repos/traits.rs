@@ -1,6 +1,7 @@
 use super::RepoError;
 use crate::libs::types::accounts::{Account, AccountId, AccountName};
 use crate::libs::types::challenges::Challenge;
+use crate::libs::types::config::CtfConfig;
 use crate::libs::types::solves::Submission;
 use crate::libs::types::teams::{Team, TeamId, TeamName};
 use async_trait::async_trait;
@@ -48,6 +49,12 @@ pub trait SubmissionRepo: Send + Sync {
     async fn find_all(&self) -> Result<Vec<Submission>, RepoError>;
     async fn find_by_team(&self, team_id: &TeamId) -> Result<Vec<Submission>, RepoError>;
     async fn save(&self, submission: Submission) -> Result<(), RepoError>;
+}
+
+#[async_trait]
+pub trait ConfigRepo: Send + Sync {
+    async fn get(&self) -> Result<CtfConfig, RepoError>;
+    async fn set(&self, config: CtfConfig) -> Result<(), RepoError>;
 }
 
 #[async_trait]
@@ -132,5 +139,15 @@ impl<T: SubmissionRepo + ?Sized> SubmissionRepo for std::sync::Arc<T> {
     }
     async fn save(&self, submission: Submission) -> Result<(), RepoError> {
         (**self).save(submission).await
+    }
+}
+
+#[async_trait]
+impl<T: ConfigRepo + ?Sized> ConfigRepo for std::sync::Arc<T> {
+    async fn get(&self) -> Result<CtfConfig, RepoError> {
+        (**self).get().await
+    }
+    async fn set(&self, config: CtfConfig) -> Result<(), RepoError> {
+        (**self).set(config).await
     }
 }
