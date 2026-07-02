@@ -1058,7 +1058,7 @@ async fn api_docs(
 ) -> axum::response::Html<String> {
     let tag = lang_id(&q.lang.unwrap_or(lang.0)).to_string();
     axum::response::Html(format!(
-        r#"<!doctype html><html><head><title>cctf.rs API</title><meta charset="utf-8" /></head><body><script id="api-reference" data-url="/openapi.yaml?lang={tag}"></script><script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference">/script></body></html>"#
+        r#"<!doctype html><html><head><title>cctf.rs API</title><meta charset="utf-8" /></head><body><script id="api-reference" data-url="/openapi.yaml?lang={tag}"></script><script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script></body></html>"#
     ))
 }
 
