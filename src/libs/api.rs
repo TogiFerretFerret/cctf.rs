@@ -2,7 +2,7 @@ use crate::libs::repos::{AccountRepo, ChallengeRepo, SubmissionRepo, TeamRepo};
 use crate::libs::services::{
     AuthService, OAuthService, ScoreboardService, ServiceError, SolveService,
 };
-use crate::libs::types::accounts::AccountId;
+use crate::libs::types::accounts::{AccountId, AccountRole};
 use crate::libs::types::teams::TeamId;
 use axum::{
     Json, Router,
@@ -808,6 +808,46 @@ impl RateLimiter {
     }
 }
 
+pub struct AdminUser {
+    pub account_id: AccountId,
+}
+
+impl<A, T, C, S> FromRequestParts<AppState<A, T, C, S>> for AdminUser
+where 
+    A: AccountRepo + Send + Sync + 'static,
+    T: TeamRepo + Send + Sync + 'static,
+    C: ChallengeRepo + Send + Sync + 'static,
+    S: SubmissionRepo + Send + Sync + 'static,
+{
+    type Rejection = LocalizedError;
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState<A, T, C, S>,
+    ) -> Result<Self, Self::Rejection> {
+        let user = AuthenticatedUser::from_request_parts(parts, state).await?;
+        let lang = get_lang(&parts.headers);
+        let account = state
+            .auth_service
+            .account_repo
+            .find_by_id(&user.account_id)
+            .await
+            .ok()
+            .flatten()
+            .ok_or_else(|| LocalizedError {
+                status: StatusCode::UNAUTHORIZED,
+                message: ServiceError::Unauthorized.localize(&lang),
+            })?;
+        if !matches!(account.role, AccountRole::Admin) {
+            return Err(LocalizedError {
+                status: StatusCode::FORBIDDEN,
+                message: LOCALES.lookup(&lang_id(&lang), "auth-admin-required"),
+            });
+        }
+        Ok(AdminUser {
+            account_id: user.account_id,
+        })
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
