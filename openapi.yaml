@@ -1,0 +1,565 @@
+openapi: 3.0.3
+info:
+  title: cctf.rs API
+  description: >
+    Hand-written OpenAPI contract for the cctf.rs CTF platform (headless axum API;
+    the frontend is a separate Astro app). This spec is the source of truth — a
+    drift-guard test asserts these paths match the routes registered in
+    `create_router`. Schemas mirror serde's encoding: newtype wrappers serialize
+    as their inner value, and Rust enums are externally tagged
+    (unit variants as bare strings, data variants as `{ "Variant": <payload> }`).
+  version: 0.1.0
+
+servers:
+  - url: http://localhost:8080
+    description: Local dev
+
+tags:
+  - name: auth
+  - name: challenges
+  - name: scoreboard
+  - name: teams
+
+security:
+  - bearerAuth: []
+
+paths:
+  /api/v1/auth/register:
+    post:
+      tags: [auth]
+      summary: Register a local account
+      security: []
+      description: Rate limited to 5 requests / 60s per IP.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterPayload" }
+      responses:
+        "201":
+          description: Account created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Account" }
+        "400": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+
+  /api/v1/auth/login:
+    post:
+      tags: [auth]
+      summary: Log in, returning a JWT
+      security: []
+      description: Rate limited to 5 requests / 60s per IP.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginPayload" }
+      responses:
+        "200":
+          description: Session token
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TokenResponse" }
+        "401": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+
+  /api/v1/auth/oauth/url:
+    get:
+      tags: [auth]
+      summary: Get the CTFtime OAuth authorize URL
+      security: []
+      responses:
+        "200":
+          description: Authorize URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url: { type: string }
+                required: [url]
+
+  /api/v1/auth/oauth/callback:
+    get:
+      tags: [auth]
+      summary: CTFtime OAuth callback, exchanges code for a JWT
+      security: []
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Session token
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TokenResponse" }
+        "400": { $ref: "#/components/responses/Error" }
+
+  /api/v1/challenges:
+    get:
+      tags: [challenges]
+      summary: List challenges (player view; flags stripped)
+      responses:
+        "200":
+          description: Player-safe challenge list
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PublicChallenge" }
+        "401": { $ref: "#/components/responses/Error" }
+    post:
+      tags: [challenges]
+      summary: Create a challenge (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Challenge" }
+      responses:
+        "201":
+          description: Created challenge (full, admin view)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Challenge" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "500": { $ref: "#/components/responses/Error" }
+
+  /api/v1/challenges/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [challenges]
+      summary: Get one challenge (player view; flag stripped)
+      responses:
+        "200":
+          description: Player-safe challenge
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicChallenge" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    patch:
+      tags: [challenges]
+      summary: Update a challenge (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Challenge" }
+      responses:
+        "200":
+          description: Updated challenge
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Challenge" }
+        "403": { $ref: "#/components/responses/Error" }
+        "500": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [challenges]
+      summary: Delete a challenge (admin only)
+      description: Instances are always removed; solves only when delete_solves=true.
+      parameters:
+        - name: delete_solves
+          in: query
+          required: false
+          schema: { type: boolean, default: false }
+      responses:
+        "204": { description: Deleted }
+        "403": { $ref: "#/components/responses/Error" }
+        "500": { $ref: "#/components/responses/Error" }
+
+  /api/v1/challenges/{id}/submit:
+    post:
+      tags: [challenges]
+      summary: Submit a flag
+      description: Rate limited to 10 / 60s per IP and per account. Team is derived server-side.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SubmitFlagPayload" }
+      responses:
+        "200":
+          description: Accepted (correct) submission
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Submission" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+
+  /api/v1/scoreboard:
+    get:
+      tags: [scoreboard]
+      summary: Get standings
+      security: []
+      parameters:
+        - name: bracket
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: Ranked standings
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ScoreboardEntry" }
+
+  /api/v1/scoreboard/export:
+    get:
+      tags: [scoreboard]
+      summary: CTFtime-format scoreboard export
+      security: []
+      responses:
+        "200":
+          description: CTFtime export
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CtfTimeScoreboardExport" }
+
+  /api/v1/teams/invite:
+    post:
+      tags: [teams]
+      summary: Mint a team invite token (captain only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateInvitePayload" }
+      responses:
+        "200":
+          description: Invite token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string }
+                  expires_at: { type: integer, format: int64 }
+                required: [token, expires_at]
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /api/v1/teams/join:
+    post:
+      tags: [teams]
+      summary: Join a team via invite token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/JoinTeamPayload" }
+      responses:
+        "200": { description: Joined }
+        "400": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    Error:
+      description: Localized error
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string, description: Localized (Accept-Language) message }
+      required: [error]
+
+    RegisterPayload:
+      type: object
+      properties:
+        username: { type: string }
+        email: { type: string, nullable: true }
+        password: { type: string }
+      required: [username, password]
+
+    LoginPayload:
+      type: object
+      properties:
+        username: { type: string }
+        password: { type: string }
+      required: [username, password]
+
+    SubmitFlagPayload:
+      type: object
+      properties:
+        flag: { type: string }
+      required: [flag]
+
+    CreateInvitePayload:
+      type: object
+      properties:
+        team_id: { type: string }
+        lifespan_hours: { type: integer, format: int64, nullable: true, description: "Clamped to 1..168" }
+      required: [team_id]
+
+    JoinTeamPayload:
+      type: object
+      properties:
+        token: { type: string }
+      required: [token]
+
+    TokenResponse:
+      type: object
+      properties:
+        token: { type: string }
+      required: [token]
+
+    AccountRole:
+      type: string
+      enum: [Admin, Player, Spectator]
+
+    Account:
+      type: object
+      description: password_hash is never serialized.
+      properties:
+        id: { type: string }
+        username: { type: string }
+        email: { type: string, nullable: true }
+        role: { $ref: "#/components/schemas/AccountRole" }
+        team_id: { type: string, nullable: true }
+        ctftime_id: { type: integer, nullable: true }
+        fields: { type: object, additionalProperties: true }
+        created_at: { type: integer, format: int64 }
+      required: [id, username, role, fields, created_at]
+
+    Submission:
+      type: object
+      properties:
+        id: { type: string }
+        challenge_id: { type: string }
+        team_id: { type: string, nullable: true }
+        account_id: { type: string }
+        points: { type: integer }
+        provided_flag: { type: string }
+        is_correct: { type: boolean }
+        submitted_at: { type: integer, format: int64 }
+        submitted_ip: { type: string }
+      required: [id, challenge_id, account_id, points, provided_flag, is_correct, submitted_at, submitted_ip]
+
+    ScoreboardEntry:
+      type: object
+      properties:
+        team_id: { type: string }
+        team_name: { type: string }
+        points: { type: integer }
+        last_solve_time: { type: integer, format: int64, nullable: true }
+        solves:
+          type: array
+          items: { type: string }
+        rank: { type: integer }
+      required: [team_id, team_name, points, solves, rank]
+
+    CtfTimeTaskStats:
+      type: object
+      properties:
+        points: { type: integer }
+        time: { type: integer, format: int64 }
+      required: [points, time]
+
+    CtfTimeStandingsEntry:
+      type: object
+      properties:
+        pos: { type: integer, nullable: true }
+        team: { type: string }
+        score: { type: number }
+        taskStats:
+          type: object
+          additionalProperties: { $ref: "#/components/schemas/CtfTimeTaskStats" }
+      required: [team, score, taskStats]
+
+    CtfTimeScoreboardExport:
+      type: object
+      properties:
+        tasks:
+          type: array
+          items: { type: string }
+        standings:
+          type: array
+          items: { $ref: "#/components/schemas/CtfTimeStandingsEntry" }
+      required: [tasks, standings]
+
+    ChallengeFile:
+      type: object
+      properties:
+        name: { type: string }
+        url: { type: string }
+        checksum_sha256: { type: string, nullable: true }
+      required: [name, url]
+
+    ChallengeRequirement:
+      type: object
+      description: "Externally tagged enum. Only variant: Solve(challenge_id)."
+      properties:
+        Solve: { type: string }
+
+    PublicHint:
+      type: object
+      properties:
+        cost: { type: integer }
+      required: [cost]
+
+    PublicChallenge:
+      type: object
+      description: Player-facing view. Never includes the flag or hint content.
+      properties:
+        id: { type: string }
+        title: { type: string }
+        description: { type: string, description: Rendered HTML }
+        category: { type: string }
+        points: { type: integer, description: Current (live-decayed) value }
+        tags:
+          type: array
+          items: { type: string }
+        files:
+          type: array
+          items: { $ref: "#/components/schemas/ChallengeFile" }
+        hints:
+          type: array
+          items: { $ref: "#/components/schemas/PublicHint" }
+        requirements:
+          type: array
+          items: { $ref: "#/components/schemas/ChallengeRequirement" }
+        connection_info: { type: string, nullable: true }
+        solved: { type: boolean }
+      required: [id, title, description, category, points, tags, files, hints, requirements, solved]
+
+    ScoringMode:
+      description: >
+        Externally tagged enum. "PointValue" or "PointAttribution" as bare
+        strings, or { "DynamicDecay": { initial, minimum, decay } }.
+      oneOf:
+        - type: string
+          enum: [PointValue, PointAttribution]
+        - type: object
+          properties:
+            DynamicDecay:
+              type: object
+              properties:
+                initial: { type: integer }
+                minimum: { type: integer }
+                decay: { type: integer }
+              required: [initial, minimum, decay]
+          required: [DynamicDecay]
+
+    ChallengePoints:
+      type: object
+      properties:
+        mode: { $ref: "#/components/schemas/ScoringMode" }
+        equation: { type: string }
+      required: [mode, equation]
+
+    PartialFlag:
+      type: object
+      properties:
+        id: { type: string }
+        validator: { $ref: "#/components/schemas/FlagValidator" }
+        weight: { type: number }
+      required: [id, validator, weight]
+
+    FlagValidator:
+      description: >
+        Externally tagged enum. { "Static": "..." }, { "Regex": "..." },
+        { "Script": "..." }, the bare string "Instanced", or
+        { "Multi": [PartialFlag, ...] }.
+      oneOf:
+        - type: string
+          enum: [Instanced]
+        - type: object
+          properties: { Static: { type: string } }
+          required: [Static]
+        - type: object
+          properties: { Regex: { type: string } }
+          required: [Regex]
+        - type: object
+          properties: { Script: { type: string } }
+          required: [Script]
+        - type: object
+          properties:
+            Multi:
+              type: array
+              items: { $ref: "#/components/schemas/PartialFlag" }
+          required: [Multi]
+
+    ChallengeDeployment:
+      description: >
+        Externally tagged enum. The bare string "None", the bare string
+        "Instanced", or { "Shared": { "url": "..." } }.
+      oneOf:
+        - type: string
+          enum: [None, Instanced]
+        - type: object
+          properties:
+            Shared:
+              type: object
+              properties:
+                url: { type: string }
+              required: [url]
+          required: [Shared]
+
+    ChallengeAuthor:
+      type: object
+      properties:
+        id: { type: string }
+        username: { type: string }
+      required: [id, username]
+
+    ChallengeHint:
+      type: object
+      properties:
+        content: { type: string, description: Rendered HTML (admin view only) }
+        cost: { type: integer }
+      required: [content, cost]
+
+    Challenge:
+      type: object
+      description: Full challenge (admin create/update body + admin response). Includes the flag.
+      properties:
+        id: { type: string }
+        title: { type: string }
+        description: { type: string, description: Rendered HTML }
+        category: { type: string }
+        points: { $ref: "#/components/schemas/ChallengePoints" }
+        flag: { $ref: "#/components/schemas/FlagValidator" }
+        author: { $ref: "#/components/schemas/ChallengeAuthor" }
+        hints:
+          type: array
+          items: { $ref: "#/components/schemas/ChallengeHint" }
+        files:
+          type: array
+          items: { $ref: "#/components/schemas/ChallengeFile" }
+        tags:
+          type: array
+          items: { type: string }
+        requirements:
+          type: array
+          items: { $ref: "#/components/schemas/ChallengeRequirement" }
+        team_consensus: { type: boolean }
+        deployment: { $ref: "#/components/schemas/ChallengeDeployment" }
+      required: [id, title, description, category, points, flag, author, hints, files, tags, requirements]

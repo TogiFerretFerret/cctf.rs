@@ -23,6 +23,7 @@ pub struct Account {
     pub id: AccountId,
     pub username: AccountName,
     pub email: Option<AccountEmail>,
+    #[serde(skip_serializing, default)]
     pub password_hash: Option<String>,
     pub role: AccountRole,
     pub team_id: Option<TeamId>,
