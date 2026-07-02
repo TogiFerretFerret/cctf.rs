@@ -235,6 +235,13 @@ async fn http_non_admin_cannot_create() {
     let player = make_account(&store, "player-1", AccountRole::Player).await;
 
     let body = serde_json::to_vec(&sample_challenge()).unwrap();
-    let (status, _) = send(&app, "POST", "/api/v1/challenges", Some(&player), Some(body)).await;
+    let (status, _) = send(
+        &app,
+        "POST",
+        "/api/v1/challenges",
+        Some(&player),
+        Some(body),
+    )
+    .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
 }
