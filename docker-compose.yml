@@ -1,0 +1,38 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: cctf
+      POSTGRES_PASSWORD: cctf
+      POSTGRES_DB: cctf
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cctf -d cctf"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    ports:
+      - "5432:5432" # exposed for local psql / debugging; drop in prod
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy # wait until Postgres accepts connections
+    environment:
+      DATABASE_URL: postgres://cctf:cctf@db:5432/cctf
+      JWT_SECRET: ${JWT_SECRET:-dev-only-change-me-to-a-long-random-value}
+      BIND_ADDR: 0.0.0.0:8080
+      # --- optional ---
+      # CTFTIME_CLIENT_ID:
+      # CTFTIME_CLIENT_SECRET:
+      # CTFTIME_REDIRECT_URI:
+      # INBOUND_EMAIL_SECRET:      # shared secret for the Cloudflare email webhook
+      # TRUST_PROXY_HEADERS: "1"   # ONLY when behind a trusted reverse proxy
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+volumes:
+  pgdata:
