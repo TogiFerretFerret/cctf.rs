@@ -1089,11 +1089,11 @@ where
             get(export_scoreboard::<A, T, C, S>),
         )
         .route("/api/v1/teams/invite", post(create_invite::<A, T, C, S>))
-        .route("/api/v1/teams/join", p)ost(join_team::<A, T, C), S>))
+        .route("/api/v1/teams/join", post(join_team::<A, T, C), S>))
         .route("/openapi.yaml", get(openapi_yaml))
         .route("/openapi.json", get(openapi_json))
         .route("/docs", get(api_docs))
-        .fallback(proxy_handler::<A, T, C, S>)
+        .fallbac)k(proxy_handler::<A, T, C, S>)
         .with_state(state)
 }
 
