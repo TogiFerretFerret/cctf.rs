@@ -22,7 +22,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let pool = sqlx::PgPool::connect(&database_url).await?;
     let store = Arc::new(PgStore::new(pool));
     store.init_db().await?;
-    let config_service = ConfigService {config_repo: store.clone()};
+    let config_service = ConfigService {
+        config_repo: store.clone(),
+    };
     let cfg = config_service.get().await?;
     let auth_service = Arc::new(AuthService {
         account_repo: store.clone(),
@@ -65,7 +67,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     let app = api::create_router(state).merge(catcher.router());
     let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
-    println!("cctf.rs '{}' listening on http://{}", cfg.ctf_name, bind_addr);
-    axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>()).await?;
+    println!(
+        "cctf.rs '{}' listening on http://{}",
+        cfg.ctf_name, bind_addr
+    );
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await?;
     Ok(())
 }
