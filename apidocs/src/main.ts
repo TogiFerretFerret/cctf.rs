@@ -149,7 +149,7 @@ function langSwitcher(): HTMLSelectElement {
 }
 
 function render(): void {
-	const byTag: opsByTag();
+	const byTag = opsByTag();
 	const nav = h("nav", { class: "nav" });
 	for (const [tag, ops] of byTag) {
 		nav.append(h("div", { class: "nav-tag" }, tag));
