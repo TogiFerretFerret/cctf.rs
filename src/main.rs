@@ -56,7 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         scoreboard_service,
         jwt_secret,
         http_client: reqwest::Client::new(),
-        rate_limiter: Arc::new(RateLimited::new()),
+        rate_limiter: Arc::new(RateLimiter::new()),
         bracket_acl_scripts: Arc::new(tokio::sync::RwLock::new(api::load_bracket_scripts())),
     };
     let catcher = HttpCatcher::new(HttpCatcherConfig {
