@@ -1028,20 +1028,19 @@ static OPENAPI_JSON: LazyLock<String> = LazyLock::new(|| {
     serde_json::to_string(&doc).expect("serialize openapi json")
 });
 
-async fn openapi_yaml() -> impl IntoResponse {
-    (
-        [(axum::http::header::CONTENT_TYPE, "application/yaml")],
-        OPENAPI_YAML,
-    )
+async fn openapi_yaml(lang: PreferredLang) -> impl IntoResponse {
+    let mut doc: serde_json::Value = serde_norway::from_str(OPENAPI_YAML).expect("openapi.yaml must be valid YAML");
+    localize_spec(&mut doc, &lang_id(&lang.0));
+    let body = serde_norway::to_string(&doc).expect("serialize localized yaml");
+    ([(axum::http::header::CONTENT_TYPE, "application/yaml")], body)
 }
 
-async fn openapi_json() -> impl IntoResponse {
-    (
-        [(axum::http::header::CONTENT_TYPE, "application/json")],
-        OPENAPI_JSON.clone(),
-    )
+async fn openapi_json(lang: PreferredLang) -> impl IntoResponse {
+    let mut doc: serde_json::Value = serde_norway::from_str(OPENAPI_YAML).expect("openapi.yaml must be valid YAML");
+    localize_spec(&mut doc, &lang_id(&lang.0));
+    let body = serde_json::to_string(&doc).expect("serialize localized json");
+    ([(axum::http::header::CONTENT_TYPE, "application/json")], body)
 }
-
 async fn api_docs() -> axum::response::Html<&'static str> {
     axum::response::Html(
         r#"<!doctype html>
@@ -1053,6 +1052,29 @@ async fn api_docs() -> axum::response::Html<&'static str> {
         </body>
         </html>"#,
     )
+}
+
+fn localize_spec(value: &mut serde_json::Value, lang: &unic_langid::LanguageIdentifier) {
+    match value {
+        serde_json::Value::Object(map) => {
+            for (k, v) in map.iter_mut() {
+                if matches!(k.as_str(), "summary" | "description" | "title") {
+                    if let serde_json::Value::String(s) = v {
+                        if !s.contains(char::is_whitespace) {
+                            let t = LOCALES.lookup(lang, s);
+                            if !t.is_empty() && &t!=s {
+                                *s = t;
+                            }
+                        }
+                    }
+                } else {
+                    localize_spec(v, lang);
+                }
+            }
+        }
+        serde_json::Value::Array(arr) => arr.iter_mut().for_each(|v| localize_spec(v, lang)),
+        _ => {}
+    }
 }
 pub fn create_router<A, T, C, S>(state: AppState<A, T, C, S>) -> Router
 where
