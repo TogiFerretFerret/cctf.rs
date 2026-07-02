@@ -97,7 +97,6 @@ where
 
         if is_correct {
             if let Some(ref matched_pf) = matched_partial {
-                // Multi-flag duplicate check
                 let already_solved_pf = existing_correct_subs.iter().any(|s| {
                     matched_pf
                         .validator
@@ -109,7 +108,6 @@ where
                     ));
                 }
             } else if challenge.team_consensus {
-                // Team Consensus duplicate check
                 let user_already_solved = existing_correct_subs
                     .iter()
                     .any(|s| s.account_id == account_id);
@@ -119,7 +117,6 @@ where
                     ));
                 }
             } else {
-                // Normal challenge duplicate check
                 if !existing_correct_subs.is_empty() {
                     return Err(ServiceError::InvalidRequest(
                         "ctf-already-solved".to_string(),
@@ -130,7 +127,6 @@ where
 
         let all_subs = self.submission_repo.find_all().await?;
         let solve_count = if team_id.is_some() {
-            // Group correct submissions by team_id
             let mut team_solves = HashMap::new();
             for s in all_subs {
                 if s.challenge_id == challenge_id && s.is_correct {
@@ -142,7 +138,6 @@ where
                     }
                 }
             }
-            // For each team that has correct submissions, check if they reached consensus
             let mut full_solve_teams = 0;
             for (t_id, user_ids) in team_solves {
                 if let Ok(Some(team)) = self.team_repo.find_by_id(&t_id).await {
@@ -162,7 +157,6 @@ where
             }
             full_solve_teams
         } else {
-            // Solo mode: unique accounts
             all_subs
                 .iter()
                 .filter(|s| s.challenge_id == challenge_id && s.is_correct)
@@ -174,7 +168,6 @@ where
         let reaches_consensus = if let Some(ref t_id) = team_id {
             if challenge.team_consensus {
                 if let Ok(Some(team)) = self.team_repo.find_by_id(t_id).await {
-                    // Check if all other members have already solved it
                     team.member_ids.iter().all(|member_id| {
                         *member_id == account_id
                             || existing_correct_subs

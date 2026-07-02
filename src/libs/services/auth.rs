@@ -30,7 +30,7 @@ pub(crate) fn verify_password(password: &str, stored_hash: &str) -> bool {
         Ok(parsed) => Argon2::default()
             .verify_password(password.as_bytes(), &parsed)
             .is_ok(),
-        Err(_) => false, // unparseable / legacy hash → reject
+        Err(_) => false,
     }
 }
 

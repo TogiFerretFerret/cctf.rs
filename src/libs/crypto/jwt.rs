@@ -32,7 +32,6 @@ fn jwt64_decode(payload: &[u8]) -> Result<Vec<u8>, JwtError> {
 }
 
 fn sign_hs256(message: &[u8], secret: &[u8]) -> Result<Vec<u8>, JwtError> {
-    // only fails if the key format/size is completely invalid for the hash
     let mut mac = HmacSha256::new_from_slice(secret).map_err(|_| JwtError::InvalidSignature)?;
     mac.update(message);
     Ok(mac.finalize().into_bytes().to_vec())
@@ -70,7 +69,6 @@ impl JwtError {
     }
 }
 
-// display fallback
 impl fmt::Display for JwtError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.localize("en-US"))
@@ -144,7 +142,6 @@ pub fn decode<P: DeserializeOwned>(token: &str, secret: &[u8]) -> Result<(Header
         return Err(JwtError::InvalidFormat);
     }
     let payload_json = jwt64_decode(payload_b64.as_bytes())?;
-    // Validate standard time claims (exp/nbf) if present, before trusting the token.
     if let Ok(v) = serde_json::from_slice::<serde_json::Value>(&payload_json) {
         let now = chrono::Utc::now().timestamp();
         if let Some(exp) = v.get("exp").and_then(|x| x.as_i64()) {

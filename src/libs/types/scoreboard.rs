@@ -8,11 +8,10 @@ pub struct ScoreboardEntry {
     pub team_name: String,
     pub points: u32,
     pub last_solve_time: Option<i64>,
-    pub solves: Vec<String>, // list of challenge ids
+    pub solves: Vec<String>,
     pub rank: u32,
 }
 
-// ctftime scoreboard export
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CtfTimeTaskStats {
     pub points: u32,

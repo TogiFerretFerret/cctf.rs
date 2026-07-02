@@ -23,7 +23,7 @@ pub struct Account {
     pub id: AccountId,
     pub username: AccountName,
     pub email: Option<AccountEmail>,
-    pub password_hash: Option<String>, // oauth only
+    pub password_hash: Option<String>,
     pub role: AccountRole,
     pub team_id: Option<TeamId>,
     pub ctftime_id: Option<u32>,
@@ -45,7 +45,6 @@ pub struct CtfTimeUserProfile {
     pub team: Option<CtfTimeTeamInfo>,
 }
 
-// ctftime api go brr
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CtfTimeTeamRating {
     pub rating_place: Option<u32>,

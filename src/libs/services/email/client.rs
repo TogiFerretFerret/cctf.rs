@@ -275,7 +275,7 @@ fn build_message(from: &str, to: &str, subject: &str, body: &str) -> String {
     for raw_line in body.split('\n') {
         let line = raw_line.strip_suffix('\r').unwrap_or(raw_line);
         if line.starts_with('.') {
-            out.push('.'); // rfc 5321 4.5.2: dot-stuffing
+            out.push('.');
         }
         out.push_str(line);
         out.push_str("\r\n");

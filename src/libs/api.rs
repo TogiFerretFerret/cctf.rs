@@ -200,9 +200,6 @@ pub struct CallbackQuery {
 
 #[derive(Deserialize)]
 pub struct SubmitFlagPayload {
-    // NOTE: team is NOT taken from the client — it is derived from the
-    // authenticated account server-side (see submit_flag). Trusting a
-    // client-supplied team_id here was a scoreboard-forgery IDOR.
     pub flag: String,
 }
 
@@ -230,7 +227,6 @@ fn generate_invite_token(team_id: &str, expires_at: i64, secret: &[u8]) -> Strin
     let message = format!("{}:{}", team_id, expires_at);
     type HmacSha256 = Hmac<Sha256>;
     let mut mac = HmacSha256::new_from_slice(secret).expect("HMAC can take key of any size");
-    // okay because this shouldn't ever end up getting shown to user in any way possible.
     mac.update(message.as_bytes());
     let signature = BASE64_URL_SAFE_NO_PAD.encode(mac.finalize().into_bytes());
     format!("{}:{}:{}", team_id, expires_at, signature)
@@ -248,7 +244,7 @@ fn verify_invite_token(token: &str, secret: &[u8]) -> Option<(String, i64)> {
     let expires_at = expires_at_str.parse::<i64>().ok()?;
     let now = chrono::Utc::now().timestamp();
     if now > expires_at {
-        return None; // Expired
+        return None;
     }
 
     let message = format!("{}:{}", team_id, expires_at);
@@ -268,8 +264,6 @@ pub fn load_bracket_scripts() -> HashMap<String, String> {
     if let Ok(content) = std::fs::read_to_string("brackets.json") {
         serde_json::from_str(&content).unwrap_or_default()
     } else {
-        // Fallback default rule (replicates previous Collegiate check dynamically)
-        // TODO: remove
         let mut map = HashMap::new();
         map.insert(
             "Collegiate".to_string(),
@@ -280,7 +274,6 @@ pub fn load_bracket_scripts() -> HashMap<String, String> {
 }
 
 pub fn validate_bracket_join_rhai(email: &str, username: &str, script_content: &str) -> bool {
-    // Resource-capped engine: an admin bracket script can't infinite-loop a worker.
     let mut engine = rhai::Engine::new();
     engine.set_max_operations(100_000);
     engine.set_max_call_levels(32);
@@ -293,7 +286,6 @@ pub fn validate_bracket_join_rhai(email: &str, username: &str, script_content: &
         Ok(is_allowed) => is_allowed,
         Err(e) => {
             eprintln!("rhaiBracket!: {:?}", e);
-            // fine because at most e gets pushed + vague/generic enough to be all languages lmao
             false
         }
     }
@@ -333,9 +325,6 @@ where
     let target_url = format!("http://{}{}", cluster_ip, path_and_query);
     let method = req.method().clone();
     let mut headers = req.headers().clone();
-    // Never forward the player's platform credentials to a challenge container —
-    // a hostile challenge could otherwise harvest JWTs/cookies. Also strip
-    // hop-by-hop headers that must not be proxied.
     for h in [
         "authorization",
         "cookie",
@@ -504,7 +493,6 @@ where
     C: ChallengeRepo + Send + Sync + 'static,
     S: SubmissionRepo + Send + Sync + 'static,
 {
-    // Limit flag attempts to 10 per 60 seconds per IP
     if !state
         .rate_limiter
         .check_limit(&format!("sub-ip:{}", ip), 10, 60)
@@ -516,7 +504,6 @@ where
         }
         .into_response();
     }
-    // Limit flag attempts to 10 per 60 seconds per account
     if !state
         .rate_limiter
         .check_limit(&format!("sub-acc:{}", user.account_id.0), 10, 60)
@@ -529,8 +516,6 @@ where
         .into_response();
     }
 
-    // Identity is authoritative from the JWT: look up THIS user's real team.
-    // Never trust a client-supplied team_id (would let anyone credit any team).
     let account = match state
         .auth_service
         .account_repo
@@ -641,8 +626,6 @@ where
         }
         .into_response();
     }
-    // Clamp invite lifetime to 1 hour .. 1 week so a client can't mint a
-    // near-immortal (or zero/negative) invite token.
     let lifespan = payload.lifespan_hours.unwrap_or(24).clamp(1, 168);
     let expires_at = chrono::Utc::now().timestamp() + (lifespan * 3600);
     let token = generate_invite_token(&team.id.0, expires_at, &state.jwt_secret);
@@ -764,17 +747,11 @@ where
     type Rejection = std::convert::Infallible;
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
-        // SECURITY: only trust forwarding headers when we KNOW we sit behind a
-        // trusted reverse proxy (set TRUST_PROXY_HEADERS=1 in that deployment).
-        // Otherwise a client spoofs X-Forwarded-For to bypass IP rate limits and
-        // poison the stored submission IP. Default = use the real socket peer.
         let trust_proxy = std::env::var("TRUST_PROXY_HEADERS")
             .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
             .unwrap_or(false);
 
         if trust_proxy {
-            // Behind a trusted proxy: take the LAST hop it appended (the one the
-            // proxy itself saw), not the leftmost client-controlled value.
             if let Some(ip) = parts
                 .headers
                 .get("x-forwarded-for")
@@ -796,7 +773,6 @@ where
             }
         }
 
-        // Trusted source of truth: the actual TCP peer address.
         if let Some(ConnectInfo(addr)) = parts.extensions.get::<ConnectInfo<SocketAddr>>() {
             return Ok(ClientIp(addr.ip().to_string()));
         }
@@ -821,7 +797,6 @@ impl RateLimiter {
         let mut map = self.requests.lock().await;
         let entry = map.entry(key.to_string()).or_insert_with(Vec::new);
 
-        // Retain only requests within the window
         entry.retain(|&ts| now - ts < window_secs);
 
         if entry.len() >= limit {
@@ -986,8 +961,6 @@ mod tests {
     }
     #[tokio::test]
     async fn test_api_register_and_login() {
-        // reqwest (rustls-no-provider) needs a process-wide provider; main() installs
-        // it at boot, but tests don't run main. `let _ =` ignores "already installed".
         let _ = tokio_rustls::rustls::crypto::ring::default_provider().install_default();
         let store = Arc::new(TestStore::default());
         let state = AppState {
@@ -1077,7 +1050,6 @@ mod tests {
         let _ = tokio_rustls::rustls::crypto::ring::default_provider().install_default();
         let store = Arc::new(TestStore::default());
 
-        // 1. Create a Collegiate bracket team
         let team = Team {
             id: TeamId("team-col".to_string()),
             name: TeamName("Collegiate Team".to_string()),
@@ -1091,7 +1063,6 @@ mod tests {
         };
         TeamRepo::save(store.as_ref(), team).await.unwrap();
 
-        // 2. Player 1: Valid .edu email
         let player1 = Account {
             id: AccountId("player1".to_string()),
             username: AccountName("player1".to_string()),
@@ -1105,7 +1076,6 @@ mod tests {
         };
         AccountRepo::save(store.as_ref(), player1).await.unwrap();
 
-        // 3. Player 2: Invalid non-.edu email
         let player2 = Account {
             id: AccountId("player2".to_string()),
             username: AccountName("player2".to_string()),
@@ -1156,7 +1126,6 @@ mod tests {
         let token =
             generate_invite_token("team-col", chrono::Utc::now().timestamp() + 3600, b"secret");
 
-        // 4. Test Join with valid .edu player 1
         let p1_auth_token = crate::libs::crypto::jwt::issue("player1", 3600, b"secret").unwrap();
         let response = app
             .clone()
@@ -1176,7 +1145,6 @@ mod tests {
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
 
-        // 5. Test Join with invalid Gmail player 2 (Should fail with 403 Forbidden)
         let p2_auth_token = crate::libs::crypto::jwt::issue("player2", 3600, b"secret").unwrap();
         let response = app
             .oneshot(

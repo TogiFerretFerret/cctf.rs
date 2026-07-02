@@ -49,7 +49,6 @@ where
         };
         let challenges = self.challenge_repo.find_all().await?;
 
-        // 1. Calculate solver counts for each challenge (unique teams/accounts that got at least one correct solve)
         let mut challenge_solvers = HashMap::new();
         for sub in &submissions {
             if sub.is_correct {
@@ -126,7 +125,6 @@ where
                             points += part_points;
                             challenge_scored = true;
 
-                            // Update last solve time
                             let max_sub_time = pf_subs.iter().map(|s| s.submitted_at).max();
                             if let Some(sub_time) = max_sub_time {
                                 last_solve_time = match last_solve_time {
@@ -157,7 +155,6 @@ where
                         points += decayed_points;
                         challenge_scored = true;
 
-                        // Update last solve time
                         let max_sub_time = c_subs.iter().map(|s| s.submitted_at).max();
                         if let Some(sub_time) = max_sub_time {
                             last_solve_time = match last_solve_time {
