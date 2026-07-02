@@ -8,8 +8,9 @@ use tokio::sync::Mutex;
 
 static DB_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
-async fn fresh_store() -> Option<Arc<PgStore>> {
-    let url = std::env::var("TEST_DATABASE_URL").ok()?;
+async fn fresh_store() -> Arc<PgStore> {
+    let url = std::env::var("TEST_DATABASE_URL")
+        .expect("TEST_DATABASE_URL must be set to run the pg integration tests");
     let pool = sqlx::PgPool::connect(&url)
         .await
         .expect("connect to TEST_DATABASE_URL");
@@ -19,16 +20,14 @@ async fn fresh_store() -> Option<Arc<PgStore>> {
         .execute(&pool)
         .await
         .expect("truncate");
-    Some(store)
+    store
 }
 
 #[tokio::test]
+#[ignore = "requires Postgres; run: TEST_DATABASE_URL=... cargo test --test pg -- --ignored"]
 async fn pg_account_roundtrip() {
     let _guard = DB_LOCK.lock().await;
-    let Some(store) = fresh_store().await else {
-        eprintln!("skipping pg_accuont_roundtrip - set TEST_DATABASE_URL to run");
-        return;
-    };
+    let store = fresh_store().await;
     let acct = Account {
         id: AccountId("acc-1".to_string()),
         username: AccountName("user-1".to_string()),
@@ -55,12 +54,10 @@ async fn pg_account_roundtrip() {
 }
 
 #[tokio::test]
+#[ignore = "requires Postgres; run: TEST_DATABASE_URL=... cargo test --test pg -- --ignored"]
 async fn pg_config_upsert() {
     let _guard = DB_LOCK.lock().await;
-    let Some(store) = fresh_store().await else {
-        eprintln!("skipping pg_config_upsert - set TEST_DATABASE_URL to run");
-        return;
-    };
+    let store = fresh_store().await;
     let svc = ConfigService {
         config_repo: store.clone(),
     };
@@ -83,12 +80,10 @@ async fn pg_config_upsert() {
 }
 
 #[tokio::test]
+#[ignore = "requires Postgres; run: TEST_DATABASE_URL=... cargo test --test pg -- --ignored"]
 async fn pg_auth_register_and_login() {
     let _guard = DB_LOCK.lock().await;
-    let Some(store) = fresh_store().await else {
-        eprintln!("skipping pg_auth_register_and_login - set TEST_DATABASE_URL to run");
-        return;
-    };
+    let store = fresh_store().await;
     let auth = AuthService {
         account_repo: store.clone(),
         team_repo: store.clone(),
