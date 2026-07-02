@@ -1052,14 +1052,15 @@ async fn openapi_json(lang: PreferredLang, Query(q): Query<SpecLangQuery>) -> im
     )
 }
 
-async fn api_docs(
-    lang: PreferredLang,
-    Query(q): Query<SpecLangQuery>,
-) -> axum::response::Html<String> {
-    let tag = lang_id(&q.lang.unwrap_or(lang.0)).to_string();
-    axum::response::Html(format!(
-        r#"<!doctype html><html><head><title>cctf.rs API</title><meta charset="utf-8" /></head><body><script id="api-reference" data-url="/openapi.yaml?lang={tag}"></script><script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script></body></html>"#
-    ))
+async fn api_docs() -> impl IntoResponse {
+    match tokio::fs::read_to_string("apidocs/dist/index.html").await {
+        Ok(html) => axum::response::Html(html).into_response(),
+        Err(_) => (
+            StatusCode::NOT_FOUND, 
+            "docs not built - run `npm run build` in apidocs/",
+        )
+            .into_response(),
+    }
 }
 
 fn localize_spec(value: &mut serde_json::Value, lang: &unic_langid::LanguageIdentifier) {

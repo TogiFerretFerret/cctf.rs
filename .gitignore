@@ -27,3 +27,7 @@ target
 # Added by cargo
 
 /target
+
+# Node / apidocs (from-scratch docs viewer)
+node_modules
+apidocs/dist

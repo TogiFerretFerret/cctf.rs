@@ -24,6 +24,14 @@ COPY src ./src
 COPY locales ./locales
 RUN cargo build --release --locked
 
+########## docs (from-scratch TS OpenAPI viewer → single self-contained file) ##########
+FROM node:22-alpine AS docs
+WORKDIR /docs
+COPY apidocs/package*.json ./
+RUN npm install
+COPY apidocs/ ./
+RUN npm run build
+
 ########## runtime ##########
 FROM debian:bookworm-slim AS runtime
 WORKDIR /app
@@ -38,6 +46,8 @@ COPY --from=builder /app/target/release/cctf-rs /usr/local/bin/cctf-rs
 # Fluent's static_loader! and load_bracket_scripts() resolve paths relative to
 # the process CWD at runtime, so ./locales must sit next to where we run.
 COPY --from=builder /app/locales ./locales
+# Built docs viewer (single self-contained index.html), served at /docs.
+COPY --from=docs /docs/dist ./apidocs/dist
 
 EXPOSE 8080
 ENV BIND_ADDR=0.0.0.0:8080
