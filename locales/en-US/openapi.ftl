@@ -2,7 +2,7 @@
 # Keys with no whitespace in openapi.yaml are looked up here; anything else stays literal.
 
 api-title = cctf.rs API
-api-description = OpenAPI contract for the cctf.rs CTF platform. Schemas mirror serde encoding: newtype wrappers serialize as their inner value, and Rust enums are externally tagged — unit variants as bare strings, data variants as an object keyed by the variant name.
+api-description = OpenAPI contract for cctf.rs. Schemas mirror serde encoding: newtype wrappers serialize as their inner value, and Rust enums are externally tagged — unit variants as bare strings, data variants as an object keyed by the variant name.
 server-local-desc = Local dev
 
 # Tags
@@ -61,7 +61,7 @@ schema-rendered-html = Rendered HTML
 schema-points-live = Current (live-decayed) value
 schema-challenge = Full challenge (admin create/update body and admin response). Includes the flag.
 schema-hint-content = Rendered HTML (admin view only)
-schema-lifespan = Clamped to 1..168
+schema-lifespan = Clamped between 1 and 168
 schema-requirement = Externally tagged enum. Only variant: Solve(challenge_id).
 schema-scoring-mode = Externally tagged enum: the bare strings "PointValue" or "PointAttribution", or a "DynamicDecay" object with initial, minimum and decay.
 schema-flag-validator = Externally tagged enum: a "Static", "Regex" or "Script" object each wrapping a string, the bare string "Instanced", or a "Multi" object wrapping an array of PartialFlag.
