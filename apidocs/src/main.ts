@@ -23,7 +23,7 @@ const LANGS = [
 	{ code: "en-US", name: "English" },
 ]; // TODO: Add more languages
 
-const app = document.getElementId("app")!;
+const app = document.getElementById("app")!;
 let doc: Doc = {};
 
 function h(
@@ -85,7 +85,7 @@ function renderOp(path: string, method: string, op: Op): HTMLElement {
 		body.push(h("h4", {}, "Parameters"));
 		body.push(h("table", { class: "props" },
 			h("thead", {}, h("tr", {}, h("th", {}, "name"), h("th", {}, "in"), h("th", {}, "type"), h("th", {}, "description"))),
-			h("tbody", {}, ...op.parmeters.map((p) => 
+			h("tbody", {}, ...op.parameters.map((p) => 
 			   h("tr", {}, 
 				 h("td", { class: "p-name" }, p.name, p.required ? h("span", { class: "req" }, "*") : null),
 				 h("td", {}, p.in),
@@ -120,7 +120,7 @@ function renderOp(path: string, method: string, op: Op): HTMLElement {
 
 function opsByTag(): Map<string, { path: string; method: string; op: Op }[]> {
 	const map = new Map<string, { path: string; method: string; op: Op }[]>();
-	for (const [path, item] of Object.entries(docs.paths??{})) {
+	for (const [path, item] of Object.entries(doc.paths??{})) {
 		for (const method of METHODS) {
 			const op = item[method];
 			if (!op) continue;
