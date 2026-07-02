@@ -25,7 +25,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::net::SocketAddr;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 static_loader! {
     static LOCALES = {
@@ -1004,6 +1004,56 @@ where
     }
 }
 
+pub const API_ROUTES: &[(&str, &str)] = &[
+    ("POST", "/api/v1/auth/register"),
+    ("POST", "/api/v1/auth/login"),
+    ("GET", "/api/v1/auth/oauth/url"),
+    ("GET", "/api/v1/auth/oauth/callback"),
+    ("GET", "/api/v1/challenges"),
+    ("POST", "/api/v1/challenges"),
+    ("GET", "/api/v1/challenges/{id}"),
+    ("PATCH", "/api/v1/challenges/{id}"),
+    ("DELETE", "/api/v1/challenges/{id}"),
+    ("POST", "/api/v1/challenges/{id}/submit"),
+    ("GET", "/api/v1/scoreboard"),
+    ("GET", "/api/v1/scoreboard/export"),
+    ("POST", "/api/v1/teams/invite"),
+    ("POST", "/api/v1/teams/join"),
+];
+
+const OPENAPI_YAML: &str = include_str!("../../openapi.yaml");
+static OPENAPI_JSON: LazyLock<String> = LazyLock::new(|| {
+    let doc: serde_json::Value = 
+        serde_norway::from_str(OPENAPI_YAML).expect("openapi.yaml must be valid YAML");
+    serde_json::to_string(&doc).expect("serialize openapi json")
+});
+
+async fn openapi_yaml() -> impl IntoResponse {
+    (
+        [(axum::http::header::CONTENT_TYPE, "application/yaml")],
+        OPENAPI_YAML,
+    )
+}
+
+async fn openapi_json() -> impl IntoResponse {
+    (
+        [(axum::http::header::CONTENT_TYPE, "application/json")],
+        OPENAPI_JSON.clone(),
+    )
+}
+
+async fn api_docs() -> axum::response::Html<&'static str> {
+    axum::response::Html(
+        r#"<!doctype html>
+        <html>
+        <head><title>cctf.rs API</title><meta charset="utf-8"/></head>
+        <body>
+            <script id="api-reference" data-url="/openapi.yaml"></script>
+            <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+        </body>
+        </html>"#,
+    )
+}
 pub fn create_router<A, T, C, S>(state: AppState<A, T, C, S>) -> Router
 where
     A: AccountRepo + Send + Sync + 'static,
@@ -1039,7 +1089,10 @@ where
             get(export_scoreboard::<A, T, C, S>),
         )
         .route("/api/v1/teams/invite", post(create_invite::<A, T, C, S>))
-        .route("/api/v1/teams/join", post(join_team::<A, T, C, S>))
+        .route("/api/v1/teams/join", p)ost(join_team::<A, T, C), S>))
+        .route("/openapi.yaml", get(openapi_yaml))
+        .route("/openapi.json", get(openapi_json))
+        .route("/docs", get(api_docs))
         .fallback(proxy_handler::<A, T, C, S>)
         .with_state(state)
 }
