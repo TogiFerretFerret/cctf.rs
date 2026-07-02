@@ -7,10 +7,10 @@ use std::fmt;
 use unic_langid::{LanguageIdentifier, langid};
 
 pub mod client;
-pub mod server;
 pub mod http;
-pub use http::{HttpCatcher, HttpCatcherConfig};
+pub mod server;
 pub use client::{SmtpCredentials, SmtpSenderClient, TlsMode};
+pub use http::{HttpCatcher, HttpCatcherConfig};
 pub use server::{Mailbox, SmtpCatcherServer};
 
 static_loader! {
@@ -48,7 +48,10 @@ pub enum EmailError {
 }
 
 fn lookup_reason(lang_id: &LanguageIdentifier, key: &str, reason: &str) -> String {
-    let args = HashMap::from([(Cow::Borrowed("reason"), FluentValue::from(reason.to_string()))]);
+    let args = HashMap::from([(
+        Cow::Borrowed("reason"),
+        FluentValue::from(reason.to_string()),
+    )]);
     LOCALES.lookup_with_args(lang_id, key, &args)
 }
 
@@ -101,6 +104,3 @@ impl From<std::io::Error> for EmailError {
 pub trait EmailService {
     async fn send_email(&self, to: &str, subject: &str, body: &str) -> Result<(), EmailError>;
 }
-
-
-    

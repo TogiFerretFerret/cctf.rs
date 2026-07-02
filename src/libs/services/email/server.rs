@@ -75,7 +75,7 @@ async fn read_data<R: AsyncBufReadExt + Unpin>(r: &mut R) -> Result<String, Emai
     loop {
         line.clear();
         let n = r.read_line(&mut line).await?;
-        if n==0 {
+        if n == 0 {
             return Err(EmailError::UnexpectedEof);
         }
         let trimmed = line.trim_end_matches(['\r', '\n']);
@@ -95,7 +95,7 @@ async fn read_data<R: AsyncBufReadExt + Unpin>(r: &mut R) -> Result<String, Emai
 fn split_verb(line: &str) -> (String, &str) {
     let line = line.trim_start();
     match line.find(char::is_whitespace) {
-        Some(i) => (line[..i].to_uppercase(), line[i+1..].trim_start()),
+        Some(i) => (line[..i].to_uppercase(), line[i + 1..].trim_start()),
         None => (line.to_uppercase(), ""),
     }
 }
@@ -117,7 +117,7 @@ fn header_value(block: &str, name: &str) -> Option<String> {
     for line in block.lines() {
         if let Some(colon) = line.find(':') {
             if line[..colon].trim().eq_ignore_ascii_case(name) {
-                return Some(line[colon+1..].trim().to_string());
+                return Some(line[colon + 1..].trim().to_string());
             }
         }
     }
@@ -146,13 +146,17 @@ async fn handle_connection(
     mailbox: Mailbox,
 ) -> Result<(), EmailError> {
     let mut stream = BufReader::new(socket);
-    write_line(&mut stream, &format!("220 {} ESMTP cctf-rs catcher", hostname)).await?;
+    write_line(
+        &mut stream,
+        &format!("220 {} ESMTP cctf-rs catcher", hostname),
+    )
+    .await?;
     let mut mail_from: Option<String> = None;
     let mut rcpts: Vec<String> = Vec::new();
     let mut line = String::new();
     loop {
         let n = read_command(&mut stream, &mut line).await?;
-        if n==0 {
+        if n == 0 {
             break;
         }
         let trimmed = line.trim_end_matches(['\r', '\n']);
@@ -197,7 +201,11 @@ async fn handle_connection(
             "NOOP" => write_line(&mut stream, "250 2.0.0 OK").await?,
             "VRFY" => write_line(&mut stream, "252 2.5.2 Cannot VRFY user").await?,
             "QUIT" => {
-                write_line(&mut stream, &format!("221 2.0.0 {} closing connection", hostname)).await?;
+                write_line(
+                    &mut stream,
+                    &format!("221 2.0.0 {} closing connection", hostname),
+                )
+                .await?;
                 break;
             }
             "" => write_line(&mut stream, "500 5.5.2 Error: bad syntax").await?,
@@ -217,7 +225,11 @@ mod tests {
         let addr = server.local_addr().unwrap();
         let mailbox = server.mailbox();
         tokio::spawn(server.serve());
-        let client = SmtpSenderClient::new(addr.ip().to_string(), addr.port(), "noreply@cctf.rs".to_string());
+        let client = SmtpSenderClient::new(
+            addr.ip().to_string(),
+            addr.port(),
+            "noreply@cctf.rs".to_string(),
+        );
         client
             .send_email(
                 "captain@chordjack.dev",
@@ -233,4 +245,3 @@ mod tests {
         assert!(caught[0].body.contains(".leading dot survives"));
     }
 }
-

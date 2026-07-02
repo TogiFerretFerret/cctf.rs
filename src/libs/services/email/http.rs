@@ -1,7 +1,7 @@
 use super::Email;
 use super::server::{Mailbox, parse_email};
 use axum::{
-    Router, 
+    Router,
     body::Bytes,
     extract::{DefaultBodyLimit, State},
     http::{HeaderMap, StatusCode, header},
@@ -33,7 +33,6 @@ pub struct HttpCatcher {
     config: HttpCatcherConfig,
 }
 
-
 #[derive(Clone)]
 struct HttpState {
     mailbox: Mailbox,
@@ -42,7 +41,10 @@ struct HttpState {
 
 impl HttpCatcher {
     pub fn new(config: HttpCatcherConfig) -> Self {
-        Self { mailbox: Arc::new(Mutex::new(Vec::new())), config }
+        Self {
+            mailbox: Arc::new(Mutex::new(Vec::new())),
+            config,
+        }
     }
     pub fn with_mailbox(mailbox: Mailbox, config: HttpCatcherConfig) -> Self {
         Self { mailbox, config }
@@ -138,4 +140,3 @@ fn header_str(headers: &HeaderMap, name: &str) -> String {
         .unwrap_or("")
         .to_string()
 }
-

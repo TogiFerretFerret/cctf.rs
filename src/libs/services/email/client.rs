@@ -4,7 +4,9 @@ use base64::{Engine as _, prelude::BASE64_STANDARD};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, ReadBuf};
+use tokio::io::{
+    AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, ReadBuf,
+};
 use tokio::net::TcpStream;
 use tokio_rustls::{
     TlsConnector,
@@ -14,7 +16,7 @@ use tokio_rustls::{
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum TlsMode {
-    None, 
+    None,
     StartTls,
 }
 
@@ -26,7 +28,7 @@ pub struct SmtpCredentials {
 
 pub struct SmtpSenderClient {
     pub smtp_host: String,
-    pub smtp_port: u16, 
+    pub smtp_port: u16,
     pub from_email: String,
     pub ehlo_name: String,
     pub tls_mode: TlsMode,
@@ -48,7 +50,11 @@ impl SmtpSenderClient {
         self.tls_mode = TlsMode::StartTls;
         self
     }
-    pub fn with_credentials(mut self, username: impl Into<String>, password: impl Into<String>) -> Self {
+    pub fn with_credentials(
+        mut self,
+        username: impl Into<String>,
+        password: impl Into<String>,
+    ) -> Self {
         self.credentials = Some(SmtpCredentials {
             username: username.into(),
             password: password.into(),
@@ -74,7 +80,7 @@ impl AsyncRead for SmtpStream {
     ) -> Poll<std::io::Result<()>> {
         match self.get_mut() {
             SmtpStream::Plain(s) => Pin::new(s).poll_read(cx, buf),
-            SmtpStream::Tls(s) => Pin::new(s).poll_read(cx, buf)
+            SmtpStream::Tls(s) => Pin::new(s).poll_read(cx, buf),
         }
     }
 }
@@ -105,7 +111,7 @@ impl AsyncWrite for SmtpStream {
             SmtpStream::Tls(s) => Pin::new(s).poll_write(cx, buf),
         }
     }
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>>{
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         match self.get_mut() {
             SmtpStream::Plain(s) => Pin::new(s).poll_flush(cx),
             SmtpStream::Tls(s) => Pin::new(s).poll_flush(cx),
@@ -135,7 +141,9 @@ impl SmtpStream {
             if trimmed.len() < 3 {
                 return Err(EmailError::InvalidResponse);
             }
-            let code: u16 = trimmed[..3].parse().map_err(|_| EmailError::InvalidResponse)?;
+            let code: u16 = trimmed[..3]
+                .parse()
+                .map_err(|_| EmailError::InvalidResponse)?;
             let is_last = trimmed.len() == 3 || trimmed.as_bytes()[3] == b' ';
             lines.push(trimmed);
             if is_last {
@@ -150,11 +158,13 @@ impl SmtpStream {
         self.write_all(b"\r\n")
             .await
             .map_err(|e| EmailError::Io(e.to_string()))?;
-        self.flush().await.map_err(|e| EmailError::Io(e.to_string()))?;
+        self.flush()
+            .await
+            .map_err(|e| EmailError::Io(e.to_string()))?;
         Ok(())
     }
     async fn command(
-        &mut self, 
+        &mut self,
         line: &str,
         expected: u16,
         phase: &str,
@@ -163,7 +173,7 @@ impl SmtpStream {
         let (code, lines) = self.read_reply().await?;
         if code != expected {
             return Err(EmailError::Rejected {
-                code, 
+                code,
                 phase: phase.to_string(),
             });
         }
@@ -191,12 +201,12 @@ fn build_tls_connector() -> Result<TlsConnector, EmailError> {
     let mut roots = RootCertStore::empty();
     roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
     let config = rustls::ClientConfig::builder_with_provider(Arc::new(
-            rustls::crypto::ring::default_provider(),
-        ))
-        .with_safe_default_protocol_versions()
-        .map_err(|e| EmailError::Tls(e.to_string()))?
-        .with_root_certificates(roots)
-        .with_no_client_auth();
+        rustls::crypto::ring::default_provider(),
+    ))
+    .with_safe_default_protocol_versions()
+    .map_err(|e| EmailError::Tls(e.to_string()))?
+    .with_root_certificates(roots)
+    .with_no_client_auth();
     Ok(TlsConnector::from(Arc::new(config)))
 }
 
@@ -207,7 +217,7 @@ fn ehlo_supports(caps: &[String], token: &str) -> bool {
             .next()
             .map(|w| w.eq_ignore_ascii_case(token))
             .unwrap_or(false)
-        })
+    })
 }
 
 fn ehlo_supports_auth_login(caps: &[String]) -> bool {
@@ -262,7 +272,10 @@ impl EmailService for SmtpSenderClient {
         let mut stream = SmtpStream::Plain(BufReader::new(tcp));
         let (code, _) = stream.read_reply().await?;
         if code != 220 {
-            return Err(EmailError::Rejected { code, phase: "greeting".to_string() });
+            return Err(EmailError::Rejected {
+                code,
+                phase: "greeting".to_string(),
+            });
         }
         let ehlo = format!("EHLO {}", self.ehlo_name);
         let mut caps = stream.command(&ehlo, 250, "EHLO").await?;
@@ -280,7 +293,11 @@ impl EmailService for SmtpSenderClient {
             }
             stream.command("AUTH LOGIN", 334, "AUTH").await?;
             stream
-                .command(&BASE64_STANDARD.encode(creds.username.as_bytes()), 334, "AUTH username")
+                .command(
+                    &BASE64_STANDARD.encode(creds.username.as_bytes()),
+                    334,
+                    "AUTH username",
+                )
                 .await?;
             stream
                 .send_line(&BASE64_STANDARD.encode(creds.password.as_bytes()))
@@ -291,7 +308,11 @@ impl EmailService for SmtpSenderClient {
             }
         }
         stream
-            .command(&format!("MAIL FROM:<{}>", self.from_email), 250, "MAIL FROM")
+            .command(
+                &format!("MAIL FROM:<{}>", self.from_email),
+                250,
+                "MAIL FROM",
+            )
             .await?;
         stream
             .command(&format!("RCPT TO:<{}>", to), 250, "RCPT TO")
@@ -303,16 +324,27 @@ impl EmailService for SmtpSenderClient {
             .await
             .map_err(|e| EmailError::Io(e.to_string()))?;
         if !message.ends_with("\r\n") {
-            stream.write_all(b"\r\n").await.map_err(|e| EmailError::Io(e.to_string()))?;
+            stream
+                .write_all(b"\r\n")
+                .await
+                .map_err(|e| EmailError::Io(e.to_string()))?;
         }
-        stream.write_all(b".\r\n").await.map_err(|e| EmailError::Io(e.to_string()))?;
-        stream.flush().await.map_err(|e| EmailError::Io(e.to_string()))?;
+        stream
+            .write_all(b".\r\n")
+            .await
+            .map_err(|e| EmailError::Io(e.to_string()))?;
+        stream
+            .flush()
+            .await
+            .map_err(|e| EmailError::Io(e.to_string()))?;
         let (code, _) = stream.read_reply().await?;
         if code != 250 {
-            return Err(EmailError::Rejected { code, phase: "message".to_string() });
+            return Err(EmailError::Rejected {
+                code,
+                phase: "message".to_string(),
+            });
         }
         let _ = stream.command("QUIT", 221, "QUIT").await;
         Ok(())
     }
 }
-
