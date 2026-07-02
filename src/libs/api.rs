@@ -1610,4 +1610,67 @@ mod tests {
             .unwrap();
         assert_eq!(response.status(), StatusCode::FORBIDDEN);
     }
+
+    fn build_test_app() -> Router {
+        let _ = tokio_rustls::rustls::crypto::ring::default_provider().install_default();
+        let store = Arc::new(TestStore::default());
+        let state = AppState {
+            auth_service: Arc::new(AuthService {
+                account_repo: store.clone(),
+                team_repo: store.clone(),
+                jwt_secret: b"secret".to_vec(),
+            }),
+            oauth_service: Arc::new(OAuthService {
+                account_repo: store.clone(),
+                team_repo: store.clone(),
+                client_id: "id".to_string(),
+                client_secret: "secret".to_string(),
+                redirect_uri: "uri".to_string(),
+                jwt_secret: b"secret".to_vec(),
+            }),
+            solve_service: Arc::new(SolveService {
+                challenge_repo: store.clone(),
+                submission_repo: store.clone(),
+                team_repo: store.clone(),
+            }),
+            scoreboard_service: Arc::new(ScoreboardService {
+                team_repo: store.clone(),
+                challenge_repo: store.clone(),
+                submission_repo: store.clone(),
+                sort_by_accuracy: false,
+                freeze_time: None,
+            }),
+            jwt_secret: b"secret".to_vec(),
+            http_client: reqwest::Client::new(),
+            rate_limiter: Arc::new(RateLimiter::new()),
+            bracket_acl_scripts: Arc::new(tokio::sync::RwLock::new(load_bracket_scripts())),
+        };
+        create_router(state)
+    }
+
+    #[tokio::test]
+    async fn router_covers_all_api_routes() {
+        let app = build_test_app();
+        for (method, path) in API_ROUTES {
+            let uri = path.replace("{id}", "x");
+            let resp = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method(*method)
+                        .uri(&uri)
+                        .body(axum::body::Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_ne!(
+                resp.status(),
+                StatusCode::NOT_FOUND,
+                "route not registered: {} {}",
+                method,
+                path
+            );
+        }
+    }
 }
