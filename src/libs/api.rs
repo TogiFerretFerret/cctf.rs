@@ -1,8 +1,8 @@
 use crate::libs::repos::{AccountRepo, ChallengeRepo, SubmissionRepo, TeamRepo};
+use crate::libs::services::solve::calculate_dynamic_points;
 use crate::libs::services::{
     AuthService, OAuthService, ScoreboardService, ServiceError, SolveService,
 };
-use crate::libs::services::solve::calculate_dynamic_points;
 use crate::libs::types::accounts::{AccountId, AccountRole};
 use crate::libs::types::challenges::{
     Challenge, ChallengeDeployment, ChallengeFile, ChallengeRequirement, ChallengeTag, ScoringMode,
@@ -822,7 +822,12 @@ where
     C: ChallengeRepo + Send + Sync + 'static,
     S: SubmissionRepo + Send + Sync + 'static,
 {
-    let viewer_team = match state.auth_service.account_repo.find_by_id(&user.account_id).await {
+    let viewer_team = match state
+        .auth_service
+        .account_repo
+        .find_by_id(&user.account_id)
+        .await
+    {
         Ok(Some(a)) => a.team_id,
         _ => None,
     };
@@ -867,11 +872,21 @@ where
     C: ChallengeRepo + Send + Sync + 'static,
     S: SubmissionRepo + Send + Sync + 'static,
 {
-    let viewer_team = match state.auth_service.account_repo.find_by_id(&user.account_id).await {
+    let viewer_team = match state
+        .auth_service
+        .account_repo
+        .find_by_id(&user.account_id)
+        .await
+    {
         Ok(Some(a)) => a.team_id,
         _ => None,
     };
-    let challenge = match state.solve_service.challenge_repo.find_by_id(&challenge_id).await {
+    let challenge = match state
+        .solve_service
+        .challenge_repo
+        .find_by_id(&challenge_id)
+        .await
+    {
         Ok(Some(c)) => c,
         Ok(None) => {
             return LocalizedError {
@@ -896,8 +911,12 @@ where
         .unwrap_or_default();
     let counts = challenge_solve_counts(&submissions);
     let solve_count = counts.get(&challenge_id).map(|s| s.len()).unwrap_or(0) as u32;
-    let solved =
-        challenge_solved_by(&challenge_id, &submissions, viewer_team.as_ref(), &user.account_id);
+    let solved = challenge_solved_by(
+        &challenge_id,
+        &submissions,
+        viewer_team.as_ref(),
+        &user.account_id,
+    );
     Json(to_public_challenge(&challenge, solve_count, solved)).into_response()
 }
 
@@ -913,7 +932,12 @@ where
     C: ChallengeRepo + Send + Sync + 'static,
     S: SubmissionRepo + Send + Sync + 'static,
 {
-    match state.solve_service.challenge_repo.save(challenge.clone()).await {
+    match state
+        .solve_service
+        .challenge_repo
+        .save(challenge.clone())
+        .await
+    {
         Ok(()) => (StatusCode::CREATED, Json(challenge)).into_response(),
         Err(e) => LocalizedError {
             status: StatusCode::INTERNAL_SERVER_ERROR,
@@ -937,7 +961,12 @@ where
     S: SubmissionRepo + Send + Sync + 'static,
 {
     challenge.id = challenge_id;
-    match state.solve_service.challenge_repo.update(challenge.clone()).await {
+    match state
+        .solve_service
+        .challenge_repo
+        .update(challenge.clone())
+        .await
+    {
         Ok(()) => Json(challenge).into_response(),
         Err(e) => LocalizedError {
             status: StatusCode::INTERNAL_SERVER_ERROR,
