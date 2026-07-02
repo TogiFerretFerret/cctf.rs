@@ -1056,7 +1056,7 @@ async fn api_docs() -> impl IntoResponse {
     match tokio::fs::read_to_string("apidocs/dist/index.html").await {
         Ok(html) => axum::response::Html(html).into_response(),
         Err(_) => (
-            StatusCode::NOT_FOUND, 
+            StatusCode::NOT_FOUND,
             "docs not built - run `npm run build` in apidocs/",
         )
             .into_response(),
