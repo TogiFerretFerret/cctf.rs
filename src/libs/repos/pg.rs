@@ -71,7 +71,7 @@ impl PgStore {
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS submissions ( \
                 id VARCHAR(64) PRIMARY KEY, \
-                challenge_id VARCHAR(64) REFERENCES challenges(id) ON DELETE CASCADE NOT NULL, \
+                challenge_id VARCHAR(64) NOT NULL, \
                 team_id VARCHAR(64) REFERENCES teams(id) ON DELETE SET NULL, \
                 account_id VARCHAR(64) REFERENCES accounts(id) ON DELETE CASCADE NOT NULL, \
                 points INT NOT NULL, \
@@ -594,6 +594,66 @@ impl ChallengeRepo for PgStore {
         .bind(challenge.team_consensus)
         .execute(&self.pool)
         .await?;
+        Ok(())
+    }
+
+    async fn update(&self, challenge: Challenge) -> Result<(), RepoError> {
+        let mode_str = match challenge.points.mode {
+            ScoringMode::PointValue => "PointValue",
+            ScoringMode::PointAttribution => "PointAttribution",
+            ScoringMode::DynamicDecay { .. } => "DynamicDecay",
+        };
+        let eq_str = match challenge.points.mode {
+            ScoringMode::DynamicDecay {
+                initial,
+                minimum,
+                decay,
+            } => format!("{},{},{}", initial, minimum, decay),
+            _ => challenge.points.equation.clone(),
+        };
+        let flag_val = serde_json::to_value(&challenge.flag)
+            .map_err(|e| RepoError::Internal(e.to_string()))?;
+        let hints_val = serde_json::to_value(&challenge.hints)
+            .map_err(|e| RepoError::Internal(e.to_string()))?;
+        let files_val = serde_json::to_value(&challenge.files)
+            .map_err(|e| RepoError::Internal(e.to_string()))?;
+        let tags_val = serde_json::to_value(&challenge.tags)
+            .map_err(|e| RepoError::Internal(e.to_string()))?;
+        let requirements_val = serde_json::to_value(&challenge.requirements)
+            .map_err(|e| RepoError::Internal(e.to_string()))?;
+        sqlx::query(
+            "UPDATE challenges SET title = $2, description = $3, category = $4, points_mode = $5, points_equation = $6, flag = $7, author_id = $8, author_username = $9, hints = $10, files = $11, tags = $12, requirements = $13, team_consensus = $14 WHERE id = $1"
+        )
+        .bind(&challenge.id)
+        .bind(&challenge.title.0)
+        .bind(&challenge.description.0.0)
+        .bind(&challenge.category.0)
+        .bind(mode_str)
+        .bind(eq_str)
+        .bind(flag_val)
+        .bind(&challenge.author.id)
+        .bind(&challenge.author.username)
+        .bind(hints_val)
+        .bind(files_val)
+        .bind(tags_val)
+        .bind(requirements_val)
+        .bind(challenge.team_consensus)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn delete(&self, id: &str, delete_solves: bool) -> Result<(), RepoError> {
+        if delete_solves {
+            sqlx::query("DELETE FROM submissions WHERE challenge_id = $1")
+                .bind(id)
+                .execute(&self.pool)
+                .await?;
+        }
+        sqlx::query("DELETE FROM challenges WHERE id = $1")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
         Ok(())
     }
 }

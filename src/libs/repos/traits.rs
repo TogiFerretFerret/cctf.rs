@@ -42,6 +42,8 @@ pub trait ChallengeRepo: InstanceRepo + Send + Sync {
     async fn find_by_id(&self, id: &str) -> Result<Option<Challenge>, RepoError>;
     async fn find_all(&self) -> Result<Vec<Challenge>, RepoError>;
     async fn save(&self, challenge: Challenge) -> Result<(), RepoError>;
+    async fn update(&self, challenge: Challenge) -> Result<(), RepoError>;
+    async fn delete(&self, id: &str, delete_solves: bool) -> Result<(), RepoError>;
 }
 
 #[async_trait]
@@ -126,6 +128,12 @@ impl<T: ChallengeRepo + ?Sized> ChallengeRepo for std::sync::Arc<T> {
     }
     async fn save(&self, challenge: Challenge) -> Result<(), RepoError> {
         (**self).save(challenge).await
+    }
+    async fn update(&self, challenge: Challenge) -> Result<(), RepoError> {
+        (**self).update(challenge).await
+    }
+    async fn delete(&self, id: &str, delete_solves: bool) -> Result<(), RepoError> {
+        (**self).delete(id, delete_solves).await
     }
 }
 

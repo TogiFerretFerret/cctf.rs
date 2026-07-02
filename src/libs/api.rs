@@ -978,6 +978,23 @@ mod tests {
         async fn find_all(&self) -> Result<Vec<Challenge>, RepoError> {
             Ok(self.challenges.read().await.values().cloned().collect())
         }
+        async fn update(&self, challenge: Challenge) -> Result<(), RepoError> {
+            self.challenges
+                .write()
+                .await
+                .insert(challenge.id.clone(), challenge);
+            Ok(())
+        }
+        async fn delete(&self, id: &str, delete_solves: bool) -> Result<(), RepoError> {
+            self.challenges.write().await.remove(id);
+            if delete_solves {
+                self.submissions
+                    .write()
+                    .await
+                    .retain(|s| s.challenge_id.as_str() != id);
+            }
+            Ok(())
+        }
     }
     #[async_trait]
     impl SubmissionRepo for TestStore {
