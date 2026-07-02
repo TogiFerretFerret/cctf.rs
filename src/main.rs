@@ -12,7 +12,6 @@ use cctf_rs::libs::{
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // TODO: LOCALIZE ALL OF DIS SHI
     dotenvy::dotenv().ok();
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL is required");
     let jwt_secret = std::env::var("JWT_SECRET")
