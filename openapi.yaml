@@ -1,21 +1,22 @@
 openapi: 3.0.3
 info:
-  title: cctf.rs API
-  description: >
-    OpenAPI contract for cctf.rs . This spec is the SOT — Schemas mirror serde's encoding: newtype wrappers serialize
-    as their inner value, and Rust enums are externally tagged
-    (unit variants as bare strings, data variants as `{ "Variant": <payload> }`).
+  title: api-title
+  description: api-description
   version: 0.1.0
 
 servers:
   - url: http://localhost:8080
-    description: Local dev
+    description: server-local-desc
 
 tags:
   - name: auth
+    description: tag-auth
   - name: challenges
+    description: tag-challenges
   - name: scoreboard
+    description: tag-scoreboard
   - name: teams
+    description: tag-teams
 
 security:
   - bearerAuth: []
@@ -24,9 +25,9 @@ paths:
   /api/v1/auth/register:
     post:
       tags: [auth]
-      summary: Register a local account
+      summary: op-register-summary
       security: []
-      description: Rate limited to 5 requests / 60s per IP.
+      description: op-register-desc
       requestBody:
         required: true
         content:
@@ -34,7 +35,7 @@ paths:
             schema: { $ref: "#/components/schemas/RegisterPayload" }
       responses:
         "201":
-          description: Account created
+          description: resp-account-created
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Account" }
@@ -44,9 +45,9 @@ paths:
   /api/v1/auth/login:
     post:
       tags: [auth]
-      summary: Log in, returning a JWT
+      summary: op-login-summary
       security: []
-      description: Rate limited to 5 requests / 60s per IP.
+      description: op-login-desc
       requestBody:
         required: true
         content:
@@ -54,7 +55,7 @@ paths:
             schema: { $ref: "#/components/schemas/LoginPayload" }
       responses:
         "200":
-          description: Session token
+          description: resp-token
           content:
             application/json:
               schema: { $ref: "#/components/schemas/TokenResponse" }
@@ -64,11 +65,11 @@ paths:
   /api/v1/auth/oauth/url:
     get:
       tags: [auth]
-      summary: Get the CTFtime OAuth authorize URL
+      summary: op-oauth-url-summary
       security: []
       responses:
         "200":
-          description: Authorize URL
+          description: resp-authorize-url
           content:
             application/json:
               schema:
@@ -80,16 +81,17 @@ paths:
   /api/v1/auth/oauth/callback:
     get:
       tags: [auth]
-      summary: CTFtime OAuth callback, exchanges code for a JWT
+      summary: op-oauth-callback-summary
       security: []
       parameters:
         - name: code
           in: query
           required: true
+          description: param-code-desc
           schema: { type: string }
       responses:
         "200":
-          description: Session token
+          description: resp-token
           content:
             application/json:
               schema: { $ref: "#/components/schemas/TokenResponse" }
@@ -98,10 +100,10 @@ paths:
   /api/v1/challenges:
     get:
       tags: [challenges]
-      summary: List challenges (player view; flags stripped)
+      summary: op-challenges-list-summary
       responses:
         "200":
-          description: Player-safe challenge list
+          description: resp-challenge-list
           content:
             application/json:
               schema:
@@ -110,7 +112,7 @@ paths:
         "401": { $ref: "#/components/responses/Error" }
     post:
       tags: [challenges]
-      summary: Create a challenge (admin only)
+      summary: op-challenge-create-summary
       requestBody:
         required: true
         content:
@@ -118,7 +120,7 @@ paths:
             schema: { $ref: "#/components/schemas/Challenge" }
       responses:
         "201":
-          description: Created challenge (full, admin view)
+          description: resp-challenge-created
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Challenge" }
@@ -131,13 +133,14 @@ paths:
       - name: id
         in: path
         required: true
+        description: param-challenge-id-desc
         schema: { type: string }
     get:
       tags: [challenges]
-      summary: Get one challenge (player view; flag stripped)
+      summary: op-challenge-get-summary
       responses:
         "200":
-          description: Player-safe challenge
+          description: resp-challenge
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PublicChallenge" }
@@ -145,7 +148,7 @@ paths:
         "404": { $ref: "#/components/responses/Error" }
     patch:
       tags: [challenges]
-      summary: Update a challenge (admin only)
+      summary: op-challenge-update-summary
       requestBody:
         required: true
         content:
@@ -153,7 +156,7 @@ paths:
             schema: { $ref: "#/components/schemas/Challenge" }
       responses:
         "200":
-          description: Updated challenge
+          description: resp-challenge-updated
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Challenge" }
@@ -161,27 +164,29 @@ paths:
         "500": { $ref: "#/components/responses/Error" }
     delete:
       tags: [challenges]
-      summary: Delete a challenge (admin only)
-      description: Instances are always removed; solves only when delete_solves=true.
+      summary: op-challenge-delete-summary
+      description: op-challenge-delete-desc
       parameters:
         - name: delete_solves
           in: query
           required: false
+          description: param-delete-solves-desc
           schema: { type: boolean, default: false }
       responses:
-        "204": { description: Deleted }
+        "204": { description: resp-deleted }
         "403": { $ref: "#/components/responses/Error" }
         "500": { $ref: "#/components/responses/Error" }
 
   /api/v1/challenges/{id}/submit:
     post:
       tags: [challenges]
-      summary: Submit a flag
-      description: Rate limited to 10 / 60s per IP and per account. Team is derived server-side.
+      summary: op-submit-summary
+      description: op-submit-desc
       parameters:
         - name: id
           in: path
           required: true
+          description: param-challenge-id-desc
           schema: { type: string }
       requestBody:
         required: true
@@ -190,7 +195,7 @@ paths:
             schema: { $ref: "#/components/schemas/SubmitFlagPayload" }
       responses:
         "200":
-          description: Accepted (correct) submission
+          description: resp-submission
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Submission" }
@@ -201,16 +206,17 @@ paths:
   /api/v1/scoreboard:
     get:
       tags: [scoreboard]
-      summary: Get standings
+      summary: op-scoreboard-summary
       security: []
       parameters:
         - name: bracket
           in: query
           required: false
+          description: param-bracket-desc
           schema: { type: string }
       responses:
         "200":
-          description: Ranked standings
+          description: resp-standings
           content:
             application/json:
               schema:
@@ -220,11 +226,11 @@ paths:
   /api/v1/scoreboard/export:
     get:
       tags: [scoreboard]
-      summary: CTFtime-format scoreboard export
+      summary: op-scoreboard-export-summary
       security: []
       responses:
         "200":
-          description: CTFtime export
+          description: resp-ctftime-export
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CtfTimeScoreboardExport" }
@@ -232,7 +238,7 @@ paths:
   /api/v1/teams/invite:
     post:
       tags: [teams]
-      summary: Mint a team invite token (captain only)
+      summary: op-teams-invite-summary
       requestBody:
         required: true
         content:
@@ -240,7 +246,7 @@ paths:
             schema: { $ref: "#/components/schemas/CreateInvitePayload" }
       responses:
         "200":
-          description: Invite token
+          description: resp-invite
           content:
             application/json:
               schema:
@@ -255,14 +261,14 @@ paths:
   /api/v1/teams/join:
     post:
       tags: [teams]
-      summary: Join a team via invite token
+      summary: op-teams-join-summary
       requestBody:
         required: true
         content:
           application/json:
             schema: { $ref: "#/components/schemas/JoinTeamPayload" }
       responses:
-        "200": { description: Joined }
+        "200": { description: resp-joined }
         "400": { $ref: "#/components/responses/Error" }
         "403": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
@@ -276,7 +282,7 @@ components:
 
   responses:
     Error:
-      description: Localized error
+      description: resp-error
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
@@ -285,7 +291,7 @@ components:
     Error:
       type: object
       properties:
-        error: { type: string, description: Localized (Accept-Language) message }
+        error: { type: string, description: schema-error-field }
       required: [error]
 
     RegisterPayload:
@@ -313,7 +319,7 @@ components:
       type: object
       properties:
         team_id: { type: string }
-        lifespan_hours: { type: integer, format: int64, nullable: true, description: "Clamped to 1..168" }
+        lifespan_hours: { type: integer, format: int64, nullable: true, description: schema-lifespan }
       required: [team_id]
 
     JoinTeamPayload:
@@ -334,7 +340,7 @@ components:
 
     Account:
       type: object
-      description: password_hash is never serialized.
+      description: schema-account
       properties:
         id: { type: string }
         username: { type: string }
@@ -412,7 +418,7 @@ components:
 
     ChallengeRequirement:
       type: object
-      description: "Externally tagged enum. Only variant: Solve(challenge_id)."
+      description: schema-requirement
       properties:
         Solve: { type: string }
 
@@ -424,13 +430,13 @@ components:
 
     PublicChallenge:
       type: object
-      description: Player-facing view. Never includes the flag or hint content.
+      description: schema-public-challenge
       properties:
         id: { type: string }
         title: { type: string }
-        description: { type: string, description: Rendered HTML }
+        description: { type: string, description: schema-rendered-html }
         category: { type: string }
-        points: { type: integer, description: Current (live-decayed) value }
+        points: { type: integer, description: schema-points-live }
         tags:
           type: array
           items: { type: string }
@@ -448,9 +454,7 @@ components:
       required: [id, title, description, category, points, tags, files, hints, requirements, solved]
 
     ScoringMode:
-      description: >
-        Externally tagged enum. "PointValue" or "PointAttribution" as bare
-        strings, or { "DynamicDecay": { initial, minimum, decay } }.
+      description: schema-scoring-mode
       oneOf:
         - type: string
           enum: [PointValue, PointAttribution]
@@ -481,10 +485,7 @@ components:
       required: [id, validator, weight]
 
     FlagValidator:
-      description: >
-        Externally tagged enum. { "Static": "..." }, { "Regex": "..." },
-        { "Script": "..." }, the bare string "Instanced", or
-        { "Multi": [PartialFlag, ...] }.
+      description: schema-flag-validator
       oneOf:
         - type: string
           enum: [Instanced]
@@ -505,9 +506,7 @@ components:
           required: [Multi]
 
     ChallengeDeployment:
-      description: >
-        Externally tagged enum. The bare string "None", the bare string
-        "Instanced", or { "Shared": { "url": "..." } }.
+      description: schema-deployment
       oneOf:
         - type: string
           enum: [None, Instanced]
@@ -530,17 +529,17 @@ components:
     ChallengeHint:
       type: object
       properties:
-        content: { type: string, description: Rendered HTML (admin view only) }
+        content: { type: string, description: schema-hint-content }
         cost: { type: integer }
       required: [content, cost]
 
     Challenge:
       type: object
-      description: Full challenge (admin create/update body + admin response). Includes the flag.
+      description: schema-challenge
       properties:
         id: { type: string }
         title: { type: string }
-        description: { type: string, description: Rendered HTML }
+        description: { type: string, description: schema-rendered-html }
         category: { type: string }
         points: { $ref: "#/components/schemas/ChallengePoints" }
         flag: { $ref: "#/components/schemas/FlagValidator" }
