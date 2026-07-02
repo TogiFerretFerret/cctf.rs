@@ -813,7 +813,7 @@ pub struct AdminUser {
 }
 
 impl<A, T, C, S> FromRequestParts<AppState<A, T, C, S>> for AdminUser
-where 
+where
     A: AccountRepo + Send + Sync + 'static,
     T: TeamRepo + Send + Sync + 'static,
     C: ChallengeRepo + Send + Sync + 'static,
