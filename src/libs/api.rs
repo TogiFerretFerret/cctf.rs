@@ -1030,24 +1030,35 @@ pub struct SpecLangQuery {
 
 async fn openapi_yaml(lang: PreferredLang, Query(q): Query<SpecLangQuery>) -> impl IntoResponse {
     let lid = lang_id(&q.lang.unwrap_or(lang.0));
-    let mut doc: serde_json::Value = serde_norway::from_str(OPENAPI_YAML).expect("openapi.yaml must be valid YAML");
+    let mut doc: serde_json::Value =
+        serde_norway::from_str(OPENAPI_YAML).expect("openapi.yaml must be valid YAML");
     localize_spec(&mut doc, &lid);
     let body = serde_norway::to_string(&doc).expect("serialize localized yaml");
-    ([(axum::http::header::CONTENT_TYPE, "application/yaml")], body)
+    (
+        [(axum::http::header::CONTENT_TYPE, "application/yaml")],
+        body,
+    )
 }
 
 async fn openapi_json(lang: PreferredLang, Query(q): Query<SpecLangQuery>) -> impl IntoResponse {
     let lid = lang_id(&q.lang.unwrap_or(lang.0));
-    let mut doc: serde_json::Value = serde_norway::from_str(OPENAPI_YAML).expect("openapi.yaml must be valid YAML");
+    let mut doc: serde_json::Value =
+        serde_norway::from_str(OPENAPI_YAML).expect("openapi.yaml must be valid YAML");
     localize_spec(&mut doc, &lid);
     let body = serde_json::to_string(&doc).expect("serialize localized json");
-    ([(axum::http::header::CONTENT_TYPE, "application/json")], body)
+    (
+        [(axum::http::header::CONTENT_TYPE, "application/json")],
+        body,
+    )
 }
 
-async fn api_docs(lang: PreferredLang, Query(q): Query<SpecLangQuery>) -> axum::response::Html<String> {
+async fn api_docs(
+    lang: PreferredLang,
+    Query(q): Query<SpecLangQuery>,
+) -> axum::response::Html<String> {
     let tag = lang_id(&q.lang.unwrap_or(lang.0)).to_string();
     axum::response::Html(format!(
-            r#"<!doctype html><html><head><title>cctf.rs API</title><meta charset="utf-8" /></head><body><script id="api-reference" data-url="/openapi.yaml?lang={tag}"></script><script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference">/script></body></html>"#
+        r#"<!doctype html><html><head><title>cctf.rs API</title><meta charset="utf-8" /></head><body><script id="api-reference" data-url="/openapi.yaml?lang={tag}"></script><script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference">/script></body></html>"#
     ))
 }
 
@@ -1059,7 +1070,7 @@ fn localize_spec(value: &mut serde_json::Value, lang: &unic_langid::LanguageIden
                     if let serde_json::Value::String(s) = v {
                         if !s.contains(char::is_whitespace) {
                             let t = LOCALES.lookup(lang, s);
-                            if !t.is_empty() && &t!=s {
+                            if !t.is_empty() && &t != s {
                                 *s = t;
                             }
                         }
