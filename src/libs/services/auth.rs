@@ -2,9 +2,7 @@ use super::ServiceError;
 use crate::libs::crypto::jwt;
 use crate::libs::repos::{AccountRepo, TeamRepo};
 use crate::libs::types::{
-    accounts::{
-        Account, AccountEmail, AccountId, AccountName, AccountRole, CtfTimeUserProfile,
-    },
+    accounts::{Account, AccountEmail, AccountId, AccountName, AccountRole, CtfTimeUserProfile},
     teams::{Team, TeamId, TeamName},
 };
 use argon2::{

@@ -103,11 +103,10 @@ where
         if self.hint_deduction_mode == HintDeductionMode::Gate
             && let Some(ref t) = team_id
         {
-            let team = self
-                .team_repo
-                .find_by_id(t)
-                .await?
-                .ok_or_else(|| ServiceError::InvalidRequest("ctf-team-not-found".to_string()))?;
+            let team =
+                self.team_repo.find_by_id(t).await?.ok_or_else(|| {
+                    ServiceError::InvalidRequest("ctf-team-not-found".to_string())
+                })?;
             let challenges = self.challenge_repo.find_all().await?;
             let solvers = build_challenge_solvers(&all_subs);
             let solve_points =

@@ -1,9 +1,7 @@
 use super::ServiceError;
 use crate::libs::repos::RepoError;
 use k8s_openapi::{
-    api::core::v1::{
-        Container, ContainerPort, Pod, PodSpec, Service, ServicePort, ServiceSpec,
-    },
+    api::core::v1::{Container, ContainerPort, Pod, PodSpec, Service, ServicePort, ServiceSpec},
     apimachinery::pkg::apis::meta::v1::ObjectMeta,
 };
 use kube::{Api, Client};
