@@ -42,6 +42,7 @@ impl InstancerService {
             db_pool,
         })
     }
+    #[allow(clippy::too_many_arguments)]
     pub async fn spawn_instance(
         &self,
         challenge_id: &str,

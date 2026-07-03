@@ -127,13 +127,15 @@ where
         let solve_count = if team_id.is_some() {
             let mut team_solves = HashMap::new();
             for s in all_subs {
-                if s.challenge_id == challenge_id && s.is_correct
-                    && let Some(ref t_id) = s.team_id {
-                        team_solves
-                            .entry(t_id.clone())
-                            .or_insert_with(Vec::new)
-                            .push(s.account_id);
-                    }
+                if s.challenge_id == challenge_id
+                    && s.is_correct
+                    && let Some(ref t_id) = s.team_id
+                {
+                    team_solves
+                        .entry(t_id.clone())
+                        .or_insert_with(Vec::new)
+                        .push(s.account_id);
+                }
             }
             let mut full_solve_teams = 0;
             for (t_id, user_ids) in team_solves {

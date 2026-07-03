@@ -116,9 +116,10 @@ fn parse_addr(rest: &str, prefix: &str) -> Option<String> {
 fn header_value(block: &str, name: &str) -> Option<String> {
     for line in block.lines() {
         if let Some(colon) = line.find(':')
-            && line[..colon].trim().eq_ignore_ascii_case(name) {
-                return Some(line[colon + 1..].trim().to_string());
-            }
+            && line[..colon].trim().eq_ignore_ascii_case(name)
+        {
+            return Some(line[colon + 1..].trim().to_string());
+        }
     }
     None
 }

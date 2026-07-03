@@ -208,10 +208,11 @@ where
                 self.account_repo.save(new_account.clone()).await?;
                 if let Some(t_id) = local_team_id
                     && let Some(mut team) = self.team_repo.find_by_id(&t_id).await?
-                        && !team.member_ids.contains(&new_account.id) {
-                            team.member_ids.push(new_account.id.clone());
-                            self.team_repo.update(team).await?;
-                        }
+                    && !team.member_ids.contains(&new_account.id)
+                {
+                    team.member_ids.push(new_account.id.clone());
+                    self.team_repo.update(team).await?;
+                }
                 new_account
             }
         };

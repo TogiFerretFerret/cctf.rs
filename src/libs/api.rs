@@ -699,11 +699,12 @@ where
     }
     let mut updated_account = account;
     updated_account.team_id = Some(team.id.clone());
-    if let Err(_) = state
+    if state
         .auth_service
         .account_repo
         .update(updated_account)
         .await
+        .is_err()
     {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }

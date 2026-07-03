@@ -90,6 +90,7 @@ impl SmtpSenderClient {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 enum SmtpStream {
     Plain(BufReader<TcpStream>),
     Tls(BufReader<TlsStream<TcpStream>>),
