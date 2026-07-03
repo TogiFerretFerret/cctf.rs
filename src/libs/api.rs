@@ -7,6 +7,7 @@ use crate::libs::types::accounts::{AccountId, AccountRole};
 use crate::libs::types::challenges::{
     Challenge, ChallengeDeployment, ChallengeFile, ChallengeRequirement, ChallengeTag, ScoringMode,
 };
+use crate::libs::types::htmlstring::HtmlString;
 use crate::libs::types::solves::Submission;
 use crate::libs::types::teams::TeamId;
 use axum::{
@@ -554,7 +555,7 @@ where
 
 #[derive(serde::Serialize)]
 pub struct UnlockHintResponse {
-    pub content: String,
+    pub content: HtmlString,
     pub cost: u32,
     pub already_unlocked: bool,
 }
@@ -773,7 +774,7 @@ where
 pub struct PublicHint {
     pub cost: u32,
     pub unlocked: bool,
-    pub content: Option<String>, // TODO: hints should be HtmlStrings?
+    pub content: Option<HtmlString>,
 }
 
 #[derive(serde::Serialize)]
@@ -873,7 +874,7 @@ fn to_public_challenge(
                     cost: h.cost.evaluate(solve_count, now),
                     unlocked: is_unlocked,
                     content: if is_unlocked {
-                        Some(h.content.0.clone())
+                        Some(h.content.clone())
                     } else {
                         None
                     },

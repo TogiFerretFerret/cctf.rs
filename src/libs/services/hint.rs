@@ -1,11 +1,13 @@
 use super::ServiceError;
 use super::scoreboard::{build_challenge_solvers, compute_team_solve_score, total_hint_cost};
 use crate::libs::repos::{ChallengeRepo, HintUnlockRepo, SubmissionRepo, TeamRepo};
-use crate::libs::types::accounts::AccountId;
-use crate::libs::types::config::HintDeductionMode;
-use crate::libs::types::htmlstring::HtmlString;
-use crate::libs::types::solves::{HintUnlock, HintUnlockId};
-use crate::libs::types::teams::TeamId;
+use crate::libs::types::{
+    accounts::AccountId,
+    config::HintDeductionMode,
+    htmlstring::HtmlString,
+    solves::{HintUnlock, HintUnlockId},
+    teams::TeamId,
+};
 use std::collections::HashSet;
 use std::sync::Arc;
 
@@ -129,7 +131,7 @@ where
         };
         self.hint_unlock_repo.save(unlock).await?;
         Ok(HintUnlockResult {
-            content: hint.content.0.clone(),
+            content: hint.content.clone(),
             cost,
             already_unlocked: false,
         })

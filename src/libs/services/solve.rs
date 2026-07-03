@@ -1,12 +1,13 @@
 use super::ServiceError;
 use crate::libs::repos::{ChallengeRepo, SubmissionRepo, TeamRepo};
-use crate::libs::types::accounts::AccountId;
-use crate::libs::types::challenges::ScoringMode;
-use crate::libs::types::flags::FlagValidator;
-use crate::libs::types::solves::{Submission, SubmissionId};
-use crate::libs::types::teams::TeamId;
-use std::collections::HashMap;
-use std::collections::HashSet;
+use crate::libs::types::{
+    accounts::AccountId,
+    challenges::ScoringMode,
+    flags::FlagValidator,
+    solves::{Submission, SubmissionId},
+    teams::TeamId,
+};
+use std::collections::{HashMap, HashSet};
 
 /// Dynamic-decay scoring: value starts at `initial` and decays toward `minimum`
 /// as more teams solve it (`decay` controls how fast). First solve

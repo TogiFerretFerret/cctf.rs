@@ -1,14 +1,16 @@
 use super::ServiceError;
 use super::solve::calculate_dynamic_points;
 use crate::libs::repos::{ChallengeRepo, HintUnlockRepo, SubmissionRepo, TeamRepo};
-use crate::libs::types::challenges::{Challenge, ScoringMode};
-use crate::libs::types::config::HintDeductionMode;
-use crate::libs::types::flags::FlagValidator;
-use crate::libs::types::scoreboard::{
-    CtfTimeScoreboardExport, CtfTimeStandingsEntry, CtfTimeTaskStats, ScoreboardEntry,
+use crate::libs::types::{
+    challenges::{Challenge, ScoringMode},
+    config::HintDeductionMode,
+    flags::FlagValidator,
+    scoreboard::{
+        CtfTimeScoreboardExport, CtfTimeStandingsEntry, CtfTimeTaskStats, ScoreboardEntry,
+    },
+    solves::Submission,
+    teams::{Team, TeamId},
 };
-use crate::libs::types::solves::Submission;
-use crate::libs::types::teams::{Team, TeamId};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 

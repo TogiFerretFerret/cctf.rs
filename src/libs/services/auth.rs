@@ -1,10 +1,12 @@
 use super::ServiceError;
 use crate::libs::crypto::jwt;
 use crate::libs::repos::{AccountRepo, TeamRepo};
-use crate::libs::types::accounts::{
-    Account, AccountEmail, AccountId, AccountName, AccountRole, CtfTimeUserProfile,
+use crate::libs::types::{
+    accounts::{
+        Account, AccountEmail, AccountId, AccountName, AccountRole, CtfTimeUserProfile,
+    },
+    teams::{Team, TeamId, TeamName},
 };
-use crate::libs::types::teams::{Team, TeamId, TeamName};
 use argon2::{
     Argon2,
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},

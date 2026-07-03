@@ -1,9 +1,11 @@
 use super::ServiceError;
 use crate::libs::repos::RepoError;
-use k8s_openapi::api::core::v1::{
-    Container, ContainerPort, Pod, PodSpec, Service, ServicePort, ServiceSpec,
+use k8s_openapi::{
+    api::core::v1::{
+        Container, ContainerPort, Pod, PodSpec, Service, ServicePort, ServiceSpec,
+    },
+    apimachinery::pkg::apis::meta::v1::ObjectMeta,
 };
-use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use kube::{Api, Client};
 use sqlx::Row;
 use std::collections::BTreeMap;
@@ -214,15 +216,19 @@ mod tests {
     use crate::libs::repos::{
         AccountRepo, ChallengeRepo, HintUnlockRepo, InstanceRepo, SubmissionRepo, TeamRepo,
     };
-    use crate::libs::services::auth::AuthService;
-    use crate::libs::services::scoreboard::ScoreboardService;
-    use crate::libs::services::solve::{SolveService, calculate_dynamic_points};
-    use crate::libs::types::accounts::{Account, AccountId, AccountName};
-    use crate::libs::types::challenges::{Challenge, ScoringMode};
-    use crate::libs::types::config::HintDeductionMode;
-    use crate::libs::types::flags::FlagValidator;
-    use crate::libs::types::solves::{HintUnlock, Submission};
-    use crate::libs::types::teams::{Team, TeamId, TeamName};
+    use crate::libs::services::{
+        auth::AuthService,
+        scoreboard::ScoreboardService,
+        solve::{SolveService, calculate_dynamic_points},
+    };
+    use crate::libs::types::{
+        accounts::{Account, AccountId, AccountName},
+        challenges::{Challenge, ScoringMode},
+        config::HintDeductionMode,
+        flags::FlagValidator,
+        solves::{HintUnlock, Submission},
+        teams::{Team, TeamId, TeamName},
+    };
     use async_trait::async_trait;
     use std::collections::HashMap;
     use std::sync::Arc;
