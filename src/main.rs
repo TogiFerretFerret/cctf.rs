@@ -52,6 +52,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         submission_repo: store.clone(),
         sort_by_accuracy: cfg.sort_by_accuracy,
         freeze_time: cfg.freeze_time,
+        hint_unlock_repo: store.clone(),
+        deduct_hint_costs: true, // TODO: make this configurable!!!
     });
     let state = AppState {
         auth_service,

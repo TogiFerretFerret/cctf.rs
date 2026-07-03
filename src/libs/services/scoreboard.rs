@@ -22,6 +22,8 @@ where
     pub submission_repo: S,
     pub sort_by_accuracy: bool,
     pub freeze_time: Option<i64>,
+    pub hint_unlock_repo: Arc<dyn HintUnlockRepo>,
+    pub deduct_hint_costs: bool,
 }
 
 impl<T, C, S> ScoreboardService<T, C, S>
@@ -63,7 +65,21 @@ where
                     .insert(solver_id);
             }
         }
-
+        let hint_unlocks = self.hint_unlock_repo.find_all().await?;
+        let hint_unlocks = if let Some(freeze) = self.freeze_time {
+            hint_unlocks
+                .into_iter()
+                .filter(|u| u.unlocked_at < freeze)
+                .collect::<Vec<_>>()
+            } else {
+                hint_unlocks
+            };
+        let mut team_hint_cost: HashMap<String, u32> = HashMap::new();
+        for u in &hint_unlocks {
+            if let Some(ref t) = u.team_id {
+                *team_hint_cost.entry(t.0.clone()).or_insert(0) += u.cost;
+            }
+        }
         let mut entries = Vec::new();
         for team in teams {
             let team_subs: Vec<&Submission> = submissions
@@ -169,7 +185,10 @@ where
                     solved_ids.push(challenge.id.clone());
                 }
             }
-
+            if self.deduct_hint_costs {
+                let spent = team_hint_cost.get(&team.id.0).copied().unwrap_or(0);
+                points = points.saturating_sub(spent);
+            } // TODO: can this mean teams can spend points they don't have?
             entries.push(ScoreboardEntry {
                 team_id: team.id,
                 team_name: team.name.0,
