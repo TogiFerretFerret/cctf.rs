@@ -1,7 +1,7 @@
 use crate::libs::repos::{AccountRepo, ChallengeRepo, SubmissionRepo, TeamRepo};
 use crate::libs::services::solve::calculate_dynamic_points;
 use crate::libs::services::{
-    AuthService, OAuthService, ScoreboardService, ServiceError, SolveService,
+    AuthService, OAuthService, ScoreboardService, ServiceError, SolveService, HintService
 };
 use crate::libs::types::accounts::{AccountId, AccountRole};
 use crate::libs::types::challenges::{
@@ -49,6 +49,7 @@ where
     pub http_client: reqwest::Client,
     pub rate_limiter: Arc<RateLimiter>,
     pub bracket_acl_scripts: Arc<tokio::sync::RwLock<HashMap<String, String>>>,
+    pub hint_service: Arc<HintService<C, S, T>>,
 }
 
 impl<A, T, C, S> Clone for AppState<A, T, C, S>
@@ -68,6 +69,7 @@ where
             http_client: self.http_client.clone(),
             rate_limiter: self.rate_limiter.clone(),
             bracket_acl_scripts: self.bracket_acl_scripts.clone(),
+            hint_service: self.hint_service.clone(),
         }
     }
 }
@@ -718,6 +720,8 @@ where
 #[derive(serde::Serialize)]
 pub struct PublicHint {
     pub cost: u32,
+    pub unlocked: bool,
+    pub content: Option<String>, // TODO: hints should be HtmlStrings?
 }
 
 #[derive(serde::Serialize)]
@@ -788,7 +792,7 @@ fn challenge_solved_by(
     })
 }
 
-fn to_public_challenge(challenge: &Challenge, solve_count: u32, solved: bool) -> PublicChallenge {
+fn to_public_challenge(challenge: &Challenge, solve_count: u32, solved: bool, unlocked: &HashSet<u32>) -> PublicChallenge {
     let connection_info = match &challenge.deployment {
         ChallengeDeployment::Shared { url } => Some(url.clone()),
         _ => None,
@@ -805,8 +809,18 @@ fn to_public_challenge(challenge: &Challenge, solve_count: u32, solved: bool) ->
         hints: challenge
             .hints
             .iter()
-            .map(|h| PublicHint {
-                cost: h.cost.evaluate(solve_count, now),
+            .enumerate()
+            .map(|(i, h)| {
+                let is_unlocked = unlocked.contains(&(i as u32));
+                PublicHint {
+                    cost: h.cost.evaluate(solve_count, now),
+                    unlocked: is_unlocked,
+                    content: if is_unlocked {
+                        Some(h.content.0.clone())
+                    } else {
+                        None
+                    },
+                }
             })
             .collect(),
         requirements: challenge.requirements.clone(),
@@ -852,13 +866,27 @@ where
         .await
         .unwrap_or_default();
     let counts = challenge_solve_counts(&submissions);
+    let unlocks = state
+        .hint_service
+        .viewer_unlocks(viewer_team.as_ref(), &user.account_id)
+        .await
+        .unwrap_or_default();
+    let mut unlocked_map: HashMap<String, HashSet<u32>> = HashMap::new();
+    for u in &unlocks {
+        unlocked_map
+            .entry(u.challenge_id.clone())
+            .or_default()
+            .insert(u.hint_index);
+    }
+    let empty_unlocks: HashSet<u32> = HashSet::new();
     let public: Vec<PublicChallenge> = challenges
         .iter()
         .map(|ch| {
             let solve_count = counts.get(&ch.id).map(|s| s.len()).unwrap_or(0) as u32;
             let solved =
                 challenge_solved_by(&ch.id, &submissions, viewer_team.as_ref(), &user.account_id);
-            to_public_challenge(ch, solve_count, solved)
+            let unlocked = unlocked_map.get(&ch.id).unwrap_or(&empty_unlocks);
+            to_public_challenge(ch, solve_count, solved, unlocked)
         })
         .collect();
     Json(public).into_response()
@@ -921,7 +949,17 @@ where
         viewer_team.as_ref(),
         &user.account_id,
     );
-    Json(to_public_challenge(&challenge, solve_count, solved)).into_response()
+    let unlocks = state
+        .hint_service
+        .viewer_unlocks(viewer_team.as_ref(), &user.account_id)
+        .await
+        .unwrap_or_default();
+    let unlocked: HashSet<u32> = unlocks
+        .iter()
+        .filter(|u| u.challenge_id == challenge_id)
+        .map(|u| u.hint_index)
+        .collect();
+    Json(to_public_challenge(&challenge, solve_count, solved, &unlocked)).into_response()
 }
 
 pub async fn create_challenge<A, T, C, S>(

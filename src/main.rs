@@ -5,7 +5,7 @@ use cctf_rs::libs::{
     api::{self, AppState, RateLimiter},
     repos::pg::PgStore,
     services::{
-        AuthService, ConfigService, OAuthService, ScoreboardService, SolveService,
+        AuthService, ConfigService, HintService, OAuthService, ScoreboardService, SolveService,
         email::{HttpCatcher, HttpCatcherConfig},
     },
 };
@@ -53,13 +53,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         sort_by_accuracy: cfg.sort_by_accuracy,
         freeze_time: cfg.freeze_time,
         hint_unlock_repo: store.clone(),
-        deduct_hint_costs: true, // TODO: make this configurable!!!
+        deduct_hint_costs: cfg.hints_deduct_score,
+    });
+    let hint_service = Arc::new(HintService {
+        challenge_repo: store.clone(),
+        submission_repo: store.clone(),
+        team_repo: store.clone(),
+        hint_unlock_repo: store.clone(),
     });
     let state = AppState {
         auth_service,
         oauth_service,
         solve_service,
         scoreboard_service,
+        hint_service,
         jwt_secret,
         http_client: reqwest::Client::new(),
         rate_limiter: Arc::new(RateLimiter::new()),

@@ -33,6 +33,22 @@ where
     S: SubmissionRepo,
     T: TeamRepo,
 {
+    /// All unlocks belonging to a viewer (team if on one, else the solo account),
+    /// across ever challenge - used to mark hint state on the challenge board.
+    pub async fn viewer_unlocks(
+        &self,
+        team_id: Option<&TeamId>,
+        account_id: &AccountId,
+    ) -> Result<Vec<HintUnlock>, ServiceError> {
+        let all = self.hint_unlock_repo.find_all().await?;
+        Ok(all
+            .into_iter()
+            .filter(|u|  match team_id {
+                Some(t) => u.team_id.as_ref() == Some(t), 
+                None => u.team_id.is_none() && &u.account_id == account_id,
+            })
+            .collect())
+    }
     /// Unlock hint `hint_index` on a challenge for a team (or solo account).
     /// Idempotent: re-unlocking returns the content without charging again. On a
     /// first unlock the cost is evaluated against the live solve count and `now`
