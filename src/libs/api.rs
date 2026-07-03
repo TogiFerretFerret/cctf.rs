@@ -7,7 +7,7 @@ use crate::libs::types::accounts::{AccountId, AccountRole};
 use crate::libs::types::challenges::{
     Challenge, ChallengeDeployment, ChallengeFile, ChallengeRequirement, ChallengeTag, ScoringMode,
 };
-use crate::libs::types::solves::Submission;
+use crate::libs::types::solves::{HintUnlock, Submission};
 use crate::libs::types::teams::TeamId;
 use axum::{
     Json, Router,
@@ -805,7 +805,9 @@ fn to_public_challenge(challenge: &Challenge, solve_count: u32, solved: bool) ->
         hints: challenge
             .hints
             .iter()
-            .map(|h| PublicHint { cost: h.cost.evaluate(solve_count, now) })
+            .map(|h| PublicHint {
+                cost: h.cost.evaluate(solve_count, now),
+            })
             .collect(),
         requirements: challenge.requirements.clone(),
         connection_info,
@@ -1268,6 +1270,7 @@ mod tests {
         teams: RwLock<HashMap<TeamId, Team>>,
         challenges: RwLock<HashMap<String, Challenge>>,
         submissions: RwLock<Vec<Submission>>,
+        hint_unlocks: RwLock<Vec<HintUnlock>>,
     }
 
     #[async_trait]
@@ -1413,6 +1416,37 @@ mod tests {
         }
         async fn find_all(&self) -> Result<Vec<Submission>, RepoError> {
             Ok(self.submissions.read().await.clone())
+        }
+    }
+    #[async_trait]
+    impl HintUnlockRepo for TestStore {
+        async fn find_all(&self) -> Result<Vec<HintUnlock>, RepoError> {
+            Ok(self.hint_unlocks.read().await.clone())
+        }
+        async fn find_for(
+            &self,
+            challenge_id: &str,
+            team_id: Option<&TeamId>,
+            account_id: &AccountId,
+        ) -> Result<Vec<HintUnlock>, RepoError> {
+            Ok(self
+                .hint_unlocks
+                .read()
+                .await
+                .iter()
+                .filter(|u| {
+                    u.challenge_id == challenge_id 
+                        && match team_id {
+                            Some(t) => u.team_id.as_ref() == Some(t),
+                            None => u.team_id.is_none() && &u.account_id == account_id,
+                        }
+                })
+                .cloned()
+                .collect())
+        }
+        async fn save(&self, unlock: HintUnlock) -> Result<(), RepoError> {
+            self.hint_unlocks.write().await.push(unlock);
+            Ok(())
         }
     }
     #[tokio::test]

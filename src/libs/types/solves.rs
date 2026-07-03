@@ -17,3 +17,17 @@ pub struct Submission {
     pub submitted_at: i64,
     pub submitted_ip: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub struct HintUnlockId(pub String);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HintUnlock {
+    pub id: HintUnlockId,
+    pub challenge_id: String,
+    pub hint_index: u32,
+    pub team_id: Option<TeamId>,
+    pub account_id: AccountId,
+    pub cost: u32,
+    pub unlocked_at: i64,
+}

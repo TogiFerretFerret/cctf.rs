@@ -2,7 +2,7 @@ use super::RepoError;
 use crate::libs::types::accounts::{Account, AccountId, AccountName};
 use crate::libs::types::challenges::Challenge;
 use crate::libs::types::config::CtfConfig;
-use crate::libs::types::solves::Submission;
+use crate::libs::types::solves::{HintUnlock, Submission};
 use crate::libs::types::teams::{Team, TeamId, TeamName};
 use async_trait::async_trait;
 
@@ -51,6 +51,18 @@ pub trait SubmissionRepo: Send + Sync {
     async fn find_all(&self) -> Result<Vec<Submission>, RepoError>;
     async fn find_by_team(&self, team_id: &TeamId) -> Result<Vec<Submission>, RepoError>;
     async fn save(&self, submission: Submission) -> Result<(), RepoError>;
+}
+
+#[async_trait]
+pub trait HintUnlockRepo: Send + Sync {
+    async fn find_all(&self) -> Result<Vec<HintUnlock>, RepoError>;
+    async fn find_for(
+        &self,
+        challenge_id: &str,
+        team_id: Option<&TeamId>,
+        account_id: &AccountId,
+    ) -> Result<Vec<HintUnlock>, RepoError>;
+    async fn save(&self, unlock: HintUnlock) -> Result<(), RepoError>;
 }
 
 #[async_trait]
@@ -147,6 +159,24 @@ impl<T: SubmissionRepo + ?Sized> SubmissionRepo for std::sync::Arc<T> {
     }
     async fn save(&self, submission: Submission) -> Result<(), RepoError> {
         (**self).save(submission).await
+    }
+}
+
+#[async_trait]
+impl<T: HintUnlockRepo + ?Sized> HintUnlockRepo for std::sync::Arc<T> {
+    async fn find_all(&self) -> Result<Vec<HintUnlock>, RepoError> {
+        (**self).find_all().await
+    }
+    async fn find_for(
+        &self,
+        challenge_id: &str,
+        team_id: Option<&TeamId>,
+        account_id: &AccountId,
+    ) -> Result<Vec<HintUnlock>, RepoError> {
+        (**self).find_for(challenge_id, team_id, account_id).await
+    }
+    async fn save(&self, unlock: HintUnlock) -> Result<(), RepoError> {
+        (**self).save(unlock).await
     }
 }
 

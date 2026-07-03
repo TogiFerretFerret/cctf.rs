@@ -1,11 +1,11 @@
 use super::RepoError;
 use super::traits::{
-    AccountRepo, ChallengeRepo, ConfigRepo, InstanceRepo, SubmissionRepo, TeamRepo,
+    AccountRepo, ChallengeRepo, ConfigRepo, HintUnlockRepo, InstanceRepo, SubmissionRepo, TeamRepo,
 };
 use crate::libs::types::accounts::{Account, AccountEmail, AccountId, AccountName, AccountRole};
 use crate::libs::types::challenges::{Challenge, ScoringMode};
 use crate::libs::types::config::CtfConfig;
-use crate::libs::types::solves::Submission;
+use crate::libs::types::solves::{HintUnlock, Submission};
 use crate::libs::types::teams::{Team, TeamId, TeamName};
 use async_trait::async_trait;
 use sqlx::Row;
@@ -102,6 +102,19 @@ impl PgStore {
             "CREATE TABLE IF NOT EXISTS ctf_config ( \
                 id INT PRIMARY KEY, \
                 data JSONB NOT NULL \
+             );",
+        )
+        .execute(&self.pool)
+        .await?;
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS hint_unlocks ( \
+                id VARCHAR(64) PRIMARY KEY, \
+                challenge_id VARCHAR(64) NOT NULL, \
+                hint_index INT NOT NULL, \
+                team_id VARCHAR(64) REFERENCES teams(id) ON DELETE SET NULL, \
+                account_id VARCHAR(64) REFERENCES accounts(id) ON DELETE CASCADE NOT NULL, \
+                cost INT NOT NULL, \
+                unlocked_at BIGINT NOT NULL \
              );",
         )
         .execute(&self.pool)
@@ -270,6 +283,25 @@ fn map_submission(row: &sqlx::postgres::PgRow) -> Result<Submission, sqlx::Error
         is_correct,
         submitted_at,
         submitted_ip,
+    })
+}
+
+fn map_hint_unlock(row: &sqlx::postgres::PgRow) -> Result<HintUnlock, sqlx::Error> {
+    let id: String = row.get("id");
+    let challenge_id: String = row.get("challenge_id");
+    let hint_index: i32 = row.get("hint_index");
+    let team_id_str: Option<String> = row.get("team_id");
+    let account_id: String = row.get("account_id");
+    let cost: i32 = row.get("cost");
+    let unlocked_at: i64 = row.get("unlocked_at");
+    Ok(HintUnlock {
+        id: crate::libs::types::solves::HintUnlockId(id),
+        challenge_id,
+        hint_index: hint_index as u32,
+        team_id: team_id_str.map(TeamId),
+        account_id: AccountId(account_id),
+        cost: cost as u32,
+        unlocked_at,
     })
 }
 
@@ -712,4 +744,55 @@ impl SubmissionRepo for PgStore {
         .await?;
         Ok(())
     }
+}
+
+#[async_trait]
+impl HintUnlockRepo for PgStore {
+    async fn find_all(&self) -> Result<Vec<HintUnlock>, RepoError> {
+        let rows = sqlx::query("SELECT * FROM hint_unlocks")
+            .fetch_all(&self.pool)
+            .await?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(map_hint_unlock(&r)?);
+        }
+        Ok(out)
+    }
+    async fn find_for(
+        &self,
+        challenge_id: &str, 
+        team_id: Option<&TeamId>,
+        account_id: &AccountId,
+    ) -> Result<Vec<HintUnlock>, RepoError> {
+        let rows = if let Some(t) = team_id {
+            sqlx::query("SELECT * FROM hint_unlocks WHERE challenge_id = $1 AND team_id = $2")
+                .bind(challenge_id)
+                .bind(&t.0)
+                .fetch_all(&self.pool)
+                .await?
+        } else {
+            sqlx::query("SELECT * FROM hint_unlocks WHERE challenge_id = $1 AND account_id = $2 AND team_id IS NULL")
+                .bind(challenge_id)
+                .bind(&account_id.0)
+                .fetch_all(&self.pool)
+                .await?
+        };
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(map_hint_unlock(&r)?);
+        }
+        Ok(out)
+    }
+    async fn save(&self, unlock: HintUnlock) -> Result<(), RepoError> {
+        sqlx::query("INSERT INTO hint_unlocks (id, challenge_id, hint_index, team_id, account_id, cost, unlocked_at) VALUES ($1, $2, $3, $4, $5, $6, $7)")
+            .bind(&unlock.id.0)
+            .bind(&unlock.challenge_id)
+            .bind(unlock.hint_index as i32)
+            .bind(unlock.team_id.map(|t| t.0))
+            .bind(&unlock.account_id.0)
+            .bind(unlock.cost as i32)
+            .bind(unlock.unlocked_at)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
 }
