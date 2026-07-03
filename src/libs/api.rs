@@ -793,6 +793,7 @@ fn to_public_challenge(challenge: &Challenge, solve_count: u32, solved: bool) ->
         ChallengeDeployment::Shared { url } => Some(url.clone()),
         _ => None,
     };
+    let now = chrono::Utc::now().timestamp();
     PublicChallenge {
         id: challenge.id.clone(),
         title: challenge.title.0.clone(),
@@ -804,7 +805,7 @@ fn to_public_challenge(challenge: &Challenge, solve_count: u32, solved: bool) ->
         hints: challenge
             .hints
             .iter()
-            .map(|h| PublicHint { cost: h.cost })
+            .map(|h| PublicHint { cost: h.cost.evaluate(solve_count, now) })
             .collect(),
         requirements: challenge.requirements.clone(),
         connection_info,

@@ -1,4 +1,4 @@
-use crate::libs::types::flags::FlagValidator;
+use crate::libs::types::flags::{FlagValidator, sandboxed_engine};
 use crate::libs::types::htmlstring::HtmlString;
 use serde::{Deserialize, Serialize};
 
@@ -38,9 +38,47 @@ pub struct ChallengeAuthor {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum HintCost {
+    Fixed(u32),
+    Script(String),
+}
+
+impl HintCost {
+    /// Resolve the cost. `Script` runs in the sandboxes rhai engine with `solves`
+    /// (challenge solve count) and `now` (unix seconds) in scope, and must return
+    /// an int; the result is clamped to `>= 0`. A broken script costs 0 (logged).
+    ///
+    /// ```
+    /// use cctf_rs::libs::types::challenges::HintCost;
+    ///
+    /// assert_eq!(HintCost::Fixed(50).evaluate(3, 0), 50);
+    /// assert_eq!(HintCost::Script("solves * 10".to_string()).evaluate(3, 0), 30);
+    /// assert_eq!(HintCost::Script("solves>5?0:100".to_String()).evaluate(9, 0), 0);
+    /// ```
+    pub fn evaluate(&self, solves: u32, now: i64) -> u32 {
+        match self {
+            HintCost::Fixed(cost) => *cost,
+            HintCost::Script(script) => {
+                let engine = sandboxed_engine();
+                let mut scope = rhai::Scope::new();
+                scope.push("solves", solves as i64);
+                scope.push("now", now);
+                match engine.eval_with_scope::<i64>(&mut scope, script) {
+                    Ok(cost) => cost.max(0) as u32,
+                    Err(e) => {
+                        eprintln!("hint cost rhai!: {:?}", e);
+                        0
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ChallengeHint {
     pub content: HtmlString,
-    pub cost: u32,
+    pub cost: HintCost,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

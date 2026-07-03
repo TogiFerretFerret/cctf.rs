@@ -10,7 +10,7 @@ fn ct_eq(a: &str, b: &str) -> bool {
 /// script with `loop {}` (or just an expensive one) runs on every flag
 /// submission and pins a worker thread forever. Scripts are admin-defined, but
 /// this is defense-in-depth against a buggy/hostile script.
-fn sandboxed_engine() -> rhai::Engine {
+pub(crate) fn sandboxed_engine() -> rhai::Engine {
     let mut engine = rhai::Engine::new();
     engine.set_max_operations(100_000);
     engine.set_max_call_levels(32);
