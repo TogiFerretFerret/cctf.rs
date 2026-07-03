@@ -1,6 +1,6 @@
 use super::ServiceError;
 use super::solve::calculate_dynamic_points;
-use crate::libs::repos::{ChallengeRepo, SubmissionRepo, TeamRepo, HintUnlockRepo};
+use crate::libs::repos::{ChallengeRepo, HintUnlockRepo, SubmissionRepo, TeamRepo};
 use crate::libs::types::challenges::{Challenge, ScoringMode};
 use crate::libs::types::flags::FlagValidator;
 use crate::libs::types::scoreboard::{
@@ -71,9 +71,9 @@ where
                 .into_iter()
                 .filter(|u| u.unlocked_at < freeze)
                 .collect::<Vec<_>>()
-            } else {
-                hint_unlocks
-            };
+        } else {
+            hint_unlocks
+        };
         let mut team_hint_cost: HashMap<String, u32> = HashMap::new();
         for u in &hint_unlocks {
             if let Some(ref t) = u.team_id {

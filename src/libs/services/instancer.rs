@@ -211,7 +211,9 @@ impl InstancerService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::libs::repos::{AccountRepo, ChallengeRepo, InstanceRepo, SubmissionRepo, TeamRepo, HintUnlockRepo};
+    use crate::libs::repos::{
+        AccountRepo, ChallengeRepo, HintUnlockRepo, InstanceRepo, SubmissionRepo, TeamRepo,
+    };
     use crate::libs::services::auth::AuthService;
     use crate::libs::services::scoreboard::ScoreboardService;
     use crate::libs::services::solve::{SolveService, calculate_dynamic_points};
@@ -399,10 +401,11 @@ mod tests {
                 .await
                 .iter()
                 .filter(|u| {
-                    u.challenge_id == challenge_id && match team_id {
-                        Some(t) => u.team_id.as_ref() == Some(t),
-                        None => u.team_id.is_none() && &u.account_id == account_id,
-                    }
+                    u.challenge_id == challenge_id
+                        && match team_id {
+                            Some(t) => u.team_id.as_ref() == Some(t),
+                            None => u.team_id.is_none() && &u.account_id == account_id,
+                        }
                 })
                 .cloned()
                 .collect())
@@ -542,7 +545,7 @@ mod tests {
             sort_by_accuracy: false,
             freeze_time: None,
             hint_unlock_repo: store.clone(),
-            deduct_hint_costs: true, 
+            deduct_hint_costs: true,
         };
         let board = scoreboard_service.get_scoreboard(None).await.unwrap();
         assert_eq!(board[0].team_name, "Team A");
@@ -554,7 +557,7 @@ mod tests {
             sort_by_accuracy: true,
             freeze_time: None,
             hint_unlock_repo: store.clone(),
-            deduct_hint_costs: true, 
+            deduct_hint_costs: true,
         };
         let board_acc = scoreboard_service_acc.get_scoreboard(None).await.unwrap();
         assert_eq!(board_acc[0].team_name, "Team A");
@@ -658,7 +661,7 @@ mod tests {
             sort_by_accuracy: false,
             freeze_time: None,
             hint_unlock_repo: store.clone(),
-            deduct_hint_costs: true, 
+            deduct_hint_costs: true,
         };
         let board = scoreboard_service.get_scoreboard(None).await.unwrap();
         assert_eq!(board[0].points, 0);

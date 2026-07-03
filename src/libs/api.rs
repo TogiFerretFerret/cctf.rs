@@ -1,7 +1,7 @@
 use crate::libs::repos::{AccountRepo, ChallengeRepo, SubmissionRepo, TeamRepo};
 use crate::libs::services::solve::calculate_dynamic_points;
 use crate::libs::services::{
-    AuthService, OAuthService, ScoreboardService, ServiceError, SolveService, HintService
+    AuthService, HintService, OAuthService, ScoreboardService, ServiceError, SolveService,
 };
 use crate::libs::types::accounts::{AccountId, AccountRole};
 use crate::libs::types::challenges::{
@@ -844,7 +844,12 @@ fn challenge_solved_by(
     })
 }
 
-fn to_public_challenge(challenge: &Challenge, solve_count: u32, solved: bool, unlocked: &HashSet<u32>) -> PublicChallenge {
+fn to_public_challenge(
+    challenge: &Challenge,
+    solve_count: u32,
+    solved: bool,
+    unlocked: &HashSet<u32>,
+) -> PublicChallenge {
     let connection_info = match &challenge.deployment {
         ChallengeDeployment::Shared { url } => Some(url.clone()),
         _ => None,
@@ -1011,7 +1016,13 @@ where
         .filter(|u| u.challenge_id == challenge_id)
         .map(|u| u.hint_index)
         .collect();
-    Json(to_public_challenge(&challenge, solve_count, solved, &unlocked)).into_response()
+    Json(to_public_challenge(
+        &challenge,
+        solve_count,
+        solved,
+        &unlocked,
+    ))
+    .into_response()
 }
 
 pub async fn create_challenge<A, T, C, S>(

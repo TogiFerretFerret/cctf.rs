@@ -21,14 +21,14 @@ where
     S: SubmissionRepo,
     T: TeamRepo,
 {
-    pub challenge_repo: C, 
-    pub submission_repo: S, 
-    pub team_repo: T, 
+    pub challenge_repo: C,
+    pub submission_repo: S,
+    pub team_repo: T,
     pub hint_unlock_repo: Arc<dyn HintUnlockRepo>,
 }
 
 impl<C, S, T> HintService<C, S, T>
-where 
+where
     C: ChallengeRepo,
     S: SubmissionRepo,
     T: TeamRepo,
@@ -43,8 +43,8 @@ where
         let all = self.hint_unlock_repo.find_all().await?;
         Ok(all
             .into_iter()
-            .filter(|u|  match team_id {
-                Some(t) => u.team_id.as_ref() == Some(t), 
+            .filter(|u| match team_id {
+                Some(t) => u.team_id.as_ref() == Some(t),
                 None => u.team_id.is_none() && &u.account_id == account_id,
             })
             .collect())
@@ -111,4 +111,3 @@ where
         })
     }
 }
-        
