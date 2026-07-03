@@ -53,7 +53,7 @@ impl HintCost {
     ///
     /// assert_eq!(HintCost::Fixed(50).evaluate(3, 0), 50);
     /// assert_eq!(HintCost::Script("solves * 10".to_string()).evaluate(3, 0), 30);
-    /// assert_eq!(HintCost::Script("solves>5?0:100".to_String()).evaluate(9, 0), 0);
+    /// assert_eq!(HintCost::Script("solves>5?0:100".to_string()).evaluate(9, 0), 0);
     /// ```
     pub fn evaluate(&self, solves: u32, now: i64) -> u32 {
         match self {
