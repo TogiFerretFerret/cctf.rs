@@ -10,6 +10,7 @@ use crate::libs::types::challenges::{
 use crate::libs::types::htmlstring::HtmlString;
 use crate::libs::types::solves::Submission;
 use crate::libs::types::teams::TeamId;
+// TODO: concision of imports
 use axum::{
     Json, Router,
     extract::{ConnectInfo, FromRequestParts, Path, Query, Request, State},
@@ -25,6 +26,7 @@ use sha2::Sha256;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::collections::HashSet;
+// TODO: concision
 use std::net::SocketAddr;
 use std::sync::Arc;
 

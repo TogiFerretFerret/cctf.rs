@@ -7,6 +7,7 @@ use crate::libs::types::challenges::{Challenge, ScoringMode};
 use crate::libs::types::config::CtfConfig;
 use crate::libs::types::solves::{HintUnlock, Submission};
 use crate::libs::types::teams::{Team, TeamId, TeamName};
+// TODO: refactor types import to be more concise
 use async_trait::async_trait;
 use sqlx::Row;
 
