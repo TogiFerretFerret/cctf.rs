@@ -66,3 +66,4 @@ schema-requirement = Externally tagged enum. Only variant: Solve(challenge_id).
 schema-scoring-mode = Externally tagged enum: the bare strings "PointValue" or "PointAttribution", or a "DynamicDecay" object with initial, minimum and decay.
 schema-flag-validator = Externally tagged enum: a "Static", "Regex" or "Script" object each wrapping a string, the bare string "Instanced", or a "Multi" object wrapping an array of PartialFlag.
 schema-deployment = Externally tagged enum: the bare string "None" or "Instanced", or a "Shared" object with a url.
+schema-hint-cost = Externally tagged enum: a "Fixed" object wrapping an integer, or a "Script" object wrapping a rhai expression evaluated with `solves` and `now` in scope.
