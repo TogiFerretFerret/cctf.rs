@@ -144,16 +144,14 @@ pub fn decode<P: DeserializeOwned>(token: &str, secret: &[u8]) -> Result<(Header
     let payload_json = jwt64_decode(payload_b64.as_bytes())?;
     if let Ok(v) = serde_json::from_slice::<serde_json::Value>(&payload_json) {
         let now = chrono::Utc::now().timestamp();
-        if let Some(exp) = v.get("exp").and_then(|x| x.as_i64()) {
-            if now >= exp {
+        if let Some(exp) = v.get("exp").and_then(|x| x.as_i64())
+            && now >= exp {
                 return Err(JwtError::Expired);
             }
-        }
-        if let Some(nbf) = v.get("nbf").and_then(|x| x.as_i64()) {
-            if now < nbf {
+        if let Some(nbf) = v.get("nbf").and_then(|x| x.as_i64())
+            && now < nbf {
                 return Err(JwtError::NotYetValid);
             }
-        }
     }
     let payload: P = serde_json::from_slice(&payload_json).map_err(JwtError::InvalidJson)?;
     Ok((header, payload))

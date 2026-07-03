@@ -312,7 +312,7 @@ where
         .get(axum::http::header::HOST)
         .and_then(|h| h.to_str().ok())
         .unwrap_or("");
-    let instance_id = match extract_instance_id(&host) {
+    let instance_id = match extract_instance_id(host) {
         Some(id) => id,
         None => return Err(StatusCode::NOT_FOUND),
     };
@@ -1147,7 +1147,7 @@ where
                 .headers
                 .get("x-forwarded-for")
                 .and_then(|v| v.to_str().ok())
-                .and_then(|s| s.split(',').last())
+                .and_then(|s| s.split(',').next_back())
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty())
             {
@@ -1174,6 +1174,12 @@ where
 
 pub struct RateLimiter {
     requests: tokio::sync::Mutex<std::collections::HashMap<String, Vec<i64>>>,
+}
+
+impl Default for RateLimiter {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl RateLimiter {

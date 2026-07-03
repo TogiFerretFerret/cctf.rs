@@ -96,7 +96,7 @@ where
         };
 
         if is_correct {
-            if let Some(ref matched_pf) = matched_partial {
+            if let Some(matched_pf) = matched_partial {
                 let already_solved_pf = existing_correct_subs.iter().any(|s| {
                     matched_pf
                         .validator
@@ -116,12 +116,10 @@ where
                         "ctf-already-solved".to_string(),
                     ));
                 }
-            } else {
-                if !existing_correct_subs.is_empty() {
-                    return Err(ServiceError::InvalidRequest(
-                        "ctf-already-solved".to_string(),
-                    ));
-                }
+            } else if !existing_correct_subs.is_empty() {
+                return Err(ServiceError::InvalidRequest(
+                    "ctf-already-solved".to_string(),
+                ));
             }
         }
 
@@ -129,14 +127,13 @@ where
         let solve_count = if team_id.is_some() {
             let mut team_solves = HashMap::new();
             for s in all_subs {
-                if s.challenge_id == challenge_id && s.is_correct {
-                    if let Some(ref t_id) = s.team_id {
+                if s.challenge_id == challenge_id && s.is_correct
+                    && let Some(ref t_id) = s.team_id {
                         team_solves
                             .entry(t_id.clone())
                             .or_insert_with(Vec::new)
                             .push(s.account_id);
                     }
-                }
             }
             let mut full_solve_teams = 0;
             for (t_id, user_ids) in team_solves {
@@ -202,7 +199,7 @@ where
                     decay,
                 } => calculate_dynamic_points(initial, minimum, decay, next_solve_count.max(1)),
             };
-            if let Some(ref matched_pf) = matched_partial {
+            if let Some(matched_pf) = matched_partial {
                 (base_points as f64 * matched_pf.weight).round() as u32
             } else {
                 base_points

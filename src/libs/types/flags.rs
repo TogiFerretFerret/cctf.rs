@@ -83,7 +83,7 @@ impl FlagValidator {
                 let engine = sandboxed_engine();
                 let mut scope = rhai::Scope::new();
                 scope.push("flag", submitted_flag.trim().to_string());
-                match engine.eval_with_scope::<bool>(&mut scope, &script_content) {
+                match engine.eval_with_scope::<bool>(&mut scope, script_content) {
                     Ok(is_correct) => is_correct,
                     Err(e) => {
                         eprintln!("rhai!: {:?}", e);
