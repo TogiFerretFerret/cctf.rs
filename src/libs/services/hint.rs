@@ -3,6 +3,7 @@ use super::scoreboard::{build_challenge_solvers, compute_team_solve_score, total
 use crate::libs::repos::{ChallengeRepo, HintUnlockRepo, SubmissionRepo, TeamRepo};
 use crate::libs::types::accounts::AccountId;
 use crate::libs::types::config::HintDeductionMode;
+use crate::libs::types::htmlstring::HtmlString;
 use crate::libs::types::solves::{HintUnlock, HintUnlockId};
 use crate::libs::types::teams::TeamId;
 use std::collections::HashSet;
@@ -12,7 +13,7 @@ use std::sync::Arc;
 /// had previously unlocked this hint - in that case no new charge is made and
 /// `cost` reflects the amount originally snapshotted.
 pub struct HintUnlockResult {
-    pub content: String,
+    pub content: HtmlString,
     pub cost: u32,
     pub already_unlocked: bool,
 }
@@ -79,7 +80,7 @@ where
             .await?;
         if let Some(prior) = existing.iter().find(|u| u.hint_index == hint_index) {
             return Ok(HintUnlockResult {
-                content: hint.content.0.clone(),
+                content: hint.content.clone(),
                 cost: prior.cost,
                 already_unlocked: true,
             });
