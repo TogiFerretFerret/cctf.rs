@@ -24,7 +24,7 @@ where
     pub challenge_repo: C, 
     pub submission_repo: S, 
     pub team_repo: T, 
-    pub hint_unlock: Arc<dyn HintUnlockRepo>,
+    pub hint_unlock_repo: Arc<dyn HintUnlockRepo>,
 }
 
 impl<C, S, T> HintService<C, S, T>
@@ -59,7 +59,7 @@ where
             .find_for(challenge_id, team_id.as_ref(), &account_id)
             .await?;
         if let Some(prior) = existing.iter().find(|u| u.hint_index == hint_index) {
-            return Ok(HintUnlockResul {
+            return Ok(HintUnlockResult {
                 content: hint.content.0.clone(),
                 cost: prior.cost,
                 already_unlocked: true,
@@ -79,7 +79,7 @@ where
             .len() as u32;
         let cost = hint.cost.evaluate(solves, now);
         let unlock = HintUnlock {
-            id: hintUnlockId(uuid::Uuid::new_v4().to_string()),
+            id: HintUnlockId(uuid::Uuid::new_v4().to_string()),
             challenge_id: challenge_id.to_string(),
             hint_index,
             team_id,
