@@ -552,6 +552,58 @@ where
     }
 }
 
+#[derive(serde::Serialize)]
+pub struct UnlockHintResponse {
+    pub content: String,
+    pub cost: u32,
+    pub already_unlocked: bool,
+}
+
+pub async fn unlock_hint<A, T, C, S>(
+    State(state): State<AppState<A, T, C, S>>,
+    user: AuthenticatedUser,
+    lang: PreferredLang,
+    Path((challenge_id, hint_index)): Path<(String, u32)>,
+) -> axum::response::Response
+where
+    A: AccountRepo + Send + Sync + 'static,
+    T: TeamRepo + Send + Sync + 'static,
+    C: ChallengeRepo + Send + Sync + 'static,
+    S: SubmissionRepo + Send + Sync + 'static,
+{
+    let account = match state
+        .auth_service
+        .account_repo
+        .find_by_id(&user.account_id)
+        .await
+    {
+        Ok(Some(a)) => a,
+        _ => {
+            return LocalizedError {
+                status: StatusCode::UNAUTHORIZED,
+                message: ServiceError::Unauthorized.localize(&lang.0),
+            }
+            .into_response();
+        }
+    };
+    let team_id = account.team_id.clone();
+    let now = chrono::Utc::now().timestamp();
+    let res = state
+        .hint_service
+        .unlock_hint(&challenge_id, hint_index, team_id, user.account_id, now)
+        .await
+        .map_localized(&lang.0);
+    match res {
+        Ok(result) => Json(UnlockHintResponse {
+            content: result.content,
+            cost: result.cost,
+            already_unlocked: result.already_unlocked,
+        })
+        .into_response(),
+        Err(err) => err.into_response(),
+    }
+}
+
 #[derive(Deserialize)]
 pub struct ScoreboardQuery {
     pub bracket: Option<String>,
@@ -1057,6 +1109,7 @@ pub const API_ROUTES: &[(&str, &str)] = &[
     ("PATCH", "/api/v1/challenges/{id}"),
     ("DELETE", "/api/v1/challenges/{id}"),
     ("POST", "/api/v1/challenges/{id}/submit"),
+    ("POST", "/api/v1/challenges/{id}/hints/{index}/unlock"),
     ("GET", "/api/v1/scoreboard"),
     ("GET", "/api/v1/scoreboard/export"),
     ("POST", "/api/v1/teams/invite"),
@@ -1156,6 +1209,10 @@ where
         .route(
             "/api/v1/challenges/{id}/submit",
             post(submit_flag::<A, T, C, S>),
+        )
+        .route(
+            "/api/v1/challenges/{id}/hints/{index}/unlock",
+            post(unlock_hint::<A, T, C, S>),
         )
         .route("/api/v1/scoreboard", get(get_scoreboard::<A, T, C, S>))
         .route(
@@ -1291,11 +1348,12 @@ where
 mod tests {
     use super::*;
     use crate::libs::repos::{
-        AccountRepo, ChallengeRepo, InstanceRepo, RepoError, SubmissionRepo, TeamRepo,
+        AccountRepo, ChallengeRepo, HintUnlockRepo, InstanceRepo, RepoError, SubmissionRepo,
+        TeamRepo,
     };
     use crate::libs::types::accounts::{Account, AccountEmail, AccountName, AccountRole};
     use crate::libs::types::challenges::Challenge;
-    use crate::libs::types::solves::Submission;
+    use crate::libs::types::solves::{HintUnlock, Submission};
     use crate::libs::types::teams::{Team, TeamName};
     use async_trait::async_trait;
     use axum::http::Request;
@@ -1516,6 +1574,14 @@ mod tests {
                 submission_repo: store.clone(),
                 sort_by_accuracy: false,
                 freeze_time: None,
+                hint_unlock_repo: store.clone(),
+                deduct_hint_costs: true,
+            }),
+            hint_service: Arc::new(HintService {
+                challenge_repo: store.clone(),
+                submission_repo: store.clone(),
+                team_repo: store.clone(),
+                hint_unlock_repo: store.clone(),
             }),
             jwt_secret: b"secret".to_vec(),
             http_client: reqwest::Client::new(),
@@ -1642,6 +1708,14 @@ mod tests {
                 submission_repo: store.clone(),
                 sort_by_accuracy: false,
                 freeze_time: None,
+                hint_unlock_repo: store.clone(),
+                deduct_hint_costs: true,
+            }),
+            hint_service: Arc::new(HintService {
+                challenge_repo: store.clone(),
+                submission_repo: store.clone(),
+                team_repo: store.clone(),
+                hint_unlock_repo: store.clone(),
             }),
             jwt_secret: b"secret".to_vec(),
             http_client: reqwest::Client::new(),
@@ -1720,6 +1794,14 @@ mod tests {
                 submission_repo: store.clone(),
                 sort_by_accuracy: false,
                 freeze_time: None,
+                hint_unlock_repo: store.clone(),
+                deduct_hint_costs: true,
+            }),
+            hint_service: Arc::new(HintService {
+                challenge_repo: store.clone(),
+                submission_repo: store.clone(),
+                team_repo: store.clone(),
+                hint_unlock_repo: store.clone(),
             }),
             jwt_secret: b"secret".to_vec(),
             http_client: reqwest::Client::new(),

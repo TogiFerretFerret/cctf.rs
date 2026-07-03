@@ -203,6 +203,32 @@ paths:
         "401": { $ref: "#/components/responses/Error" }
         "429": { $ref: "#/components/responses/Error" }
 
+  /api/v1/challenges/{id}/hints/{index}/unlock:
+    post:
+      tags: [challenges]
+      summary: op-unlock-hint-summary
+      description: op-unlock-hint-desc
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: param-challenge-id-desc
+          schema: { type: string }
+        - name: index
+          in: path
+          required: true
+          description: param-hint-index-desc
+          schema: { type: integer }
+      responses:
+        "200":
+          description: resp-hint-unlock
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UnlockHintResponse" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
   /api/v1/scoreboard:
     get:
       tags: [scoreboard]
@@ -425,8 +451,10 @@ components:
     PublicHint:
       type: object
       properties:
-        cost: { type: integer }
-      required: [cost]
+        cost: { type: integer, description: schema-points-live }
+        unlocked: { type: boolean }
+        content: { type: string, nullable: true, description: schema-rendered-html }
+      required: [cost, unlocked]
 
     PublicChallenge:
       type: object
@@ -542,6 +570,14 @@ components:
         content: { type: string, description: schema-hint-content }
         cost: { $ref: "#/components/schemas/HintCost" }
       required: [content, cost]
+
+    UnlockHintResponse:
+      type: object
+      properties:
+        content: { type: string }
+        cost: { type: integer }
+        already_unlocked: { type: boolean }
+      required: [content, cost, already_unlocked]
 
     Challenge:
       type: object

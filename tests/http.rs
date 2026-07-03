@@ -6,7 +6,9 @@ use axum::http::{Request, StatusCode};
 use cctf_rs::libs::api::{AppState, RateLimiter, create_router};
 use cctf_rs::libs::crypto::jwt;
 use cctf_rs::libs::repos::{AccountRepo, SubmissionRepo, pg::PgStore};
-use cctf_rs::libs::services::{AuthService, OAuthService, ScoreboardService, SolveService};
+use cctf_rs::libs::services::{
+    AuthService, HintService, OAuthService, ScoreboardService, SolveService,
+};
 use cctf_rs::libs::types::accounts::{Account, AccountId, AccountName, AccountRole};
 use cctf_rs::libs::types::challenges::{
     Challenge, ChallengeAuthor, ChallengeCategory, ChallengeDeployment, ChallengeDescription,
@@ -64,6 +66,14 @@ fn build_app(store: Arc<PgStore>) -> Router {
             submission_repo: store.clone(),
             sort_by_accuracy: false,
             freeze_time: None,
+            hint_unlock_repo: store.clone(),
+            deduct_hint_costs: true,
+        }),
+        hint_service: Arc::new(HintService {
+            challenge_repo: store.clone(),
+            submission_repo: store.clone(),
+            team_repo: store.clone(),
+            hint_unlock_repo: store.clone(),
         }),
         jwt_secret: SECRET.to_vec(),
         http_client: reqwest::Client::new(),

@@ -26,6 +26,8 @@ op-challenge-delete-summary = Delete a challenge (admin only)
 op-challenge-delete-desc = Instances are always removed; solves only when delete_solves=true.
 op-submit-summary = Submit a flag
 op-submit-desc = Rate limited to 10 / 60s per IP and per account. Team is derived server-side.
+op-unlock-hint-summary = Unlock a hint
+op-unlock-hint-desc = Unlock hint by index. Charges the evaluated cost once (idempotent); the cost is deducted from the team's score when hint deduction is enabled.
 op-scoreboard-summary = Get standings
 op-scoreboard-export-summary = CTFtime-format scoreboard export
 op-teams-invite-summary = Mint a team invite token (captain only)
@@ -36,6 +38,7 @@ param-code-desc = OAuth authorization code
 param-challenge-id-desc = Challenge id
 param-delete-solves-desc = Also delete solve records for this challenge
 param-bracket-desc = Filter standings to a bracket
+param-hint-index-desc = Zero-based hint index
 
 # Responses
 resp-account-created = Account created
@@ -47,6 +50,7 @@ resp-challenge = Player-safe challenge
 resp-challenge-updated = Updated challenge
 resp-deleted = Deleted
 resp-submission = Accepted (correct) submission
+resp-hint-unlock = Revealed hint content and the charged cost
 resp-standings = Ranked standings
 resp-ctftime-export = CTFtime export
 resp-invite = Invite token
