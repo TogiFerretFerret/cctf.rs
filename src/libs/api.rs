@@ -7,7 +7,7 @@ use crate::libs::types::accounts::{AccountId, AccountRole};
 use crate::libs::types::challenges::{
     Challenge, ChallengeDeployment, ChallengeFile, ChallengeRequirement, ChallengeTag, ScoringMode,
 };
-use crate::libs::types::solves::{HintUnlock, Submission};
+use crate::libs::types::solves::Submission;
 use crate::libs::types::teams::TeamId;
 use axum::{
     Json, Router,

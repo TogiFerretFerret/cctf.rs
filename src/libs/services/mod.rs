@@ -80,8 +80,11 @@ pub mod email;
 pub mod instancer;
 pub mod scoreboard;
 pub mod solve;
+pub mod hint;
 
 pub use auth::{AuthService, OAuthService};
 pub use config::ConfigService;
 pub use scoreboard::ScoreboardService;
 pub use solve::SolveService;
+pub use hint::HintService;
+
