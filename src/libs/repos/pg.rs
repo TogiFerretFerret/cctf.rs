@@ -760,7 +760,7 @@ impl HintUnlockRepo for PgStore {
     }
     async fn find_for(
         &self,
-        challenge_id: &str, 
+        challenge_id: &str,
         team_id: Option<&TeamId>,
         account_id: &AccountId,
     ) -> Result<Vec<HintUnlock>, RepoError> {
@@ -795,4 +795,5 @@ impl HintUnlockRepo for PgStore {
             .execute(&self.pool)
             .await?;
         Ok(())
+    }
 }

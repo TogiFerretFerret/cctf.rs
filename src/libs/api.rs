@@ -1435,7 +1435,7 @@ mod tests {
                 .await
                 .iter()
                 .filter(|u| {
-                    u.challenge_id == challenge_id 
+                    u.challenge_id == challenge_id
                         && match team_id {
                             Some(t) => u.team_id.as_ref() == Some(t),
                             None => u.team_id.is_none() && &u.account_id == account_id,
