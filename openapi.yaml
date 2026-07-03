@@ -526,11 +526,21 @@ components:
         username: { type: string }
       required: [id, username]
 
+    HintCost:
+      description: schema-hint-cost
+      oneOf:
+        - type: object
+          properties: { Fixed: { type: integer } }
+          required: [Fixed]
+        - type: object
+          properties: { Script: { type: string } }
+          required: [Script]
+
     ChallengeHint:
       type: object
       properties:
         content: { type: string, description: schema-hint-content }
-        cost: { type: integer }
+        cost: { $ref: "#/components/schemas/HintCost" }
       required: [content, cost]
 
     Challenge:
