@@ -1364,6 +1364,7 @@ mod tests {
     };
     use crate::libs::types::accounts::{Account, AccountEmail, AccountName, AccountRole};
     use crate::libs::types::challenges::Challenge;
+    use crate::libs::types::config::HintDeductionMode;
     use crate::libs::types::solves::{HintUnlock, Submission};
     use crate::libs::types::teams::{Team, TeamName};
     use async_trait::async_trait;
@@ -1586,13 +1587,14 @@ mod tests {
                 sort_by_accuracy: false,
                 freeze_time: None,
                 hint_unlock_repo: store.clone(),
-                deduct_hint_costs: true,
+                hint_deduction_mode: HintDeductionMode::FloorZero,
             }),
             hint_service: Arc::new(HintService {
                 challenge_repo: store.clone(),
                 submission_repo: store.clone(),
                 team_repo: store.clone(),
                 hint_unlock_repo: store.clone(),
+                hint_deduction_mode: HintDeductionMode::FloorZero,
             }),
             jwt_secret: b"secret".to_vec(),
             http_client: reqwest::Client::new(),
@@ -1720,13 +1722,14 @@ mod tests {
                 sort_by_accuracy: false,
                 freeze_time: None,
                 hint_unlock_repo: store.clone(),
-                deduct_hint_costs: true,
+                hint_deduction_mode: HintDeductionMode::FloorZero,
             }),
             hint_service: Arc::new(HintService {
                 challenge_repo: store.clone(),
                 submission_repo: store.clone(),
                 team_repo: store.clone(),
                 hint_unlock_repo: store.clone(),
+                hint_deduction_mode: HintDeductionMode::FloorZero,
             }),
             jwt_secret: b"secret".to_vec(),
             http_client: reqwest::Client::new(),
@@ -1806,13 +1809,14 @@ mod tests {
                 sort_by_accuracy: false,
                 freeze_time: None,
                 hint_unlock_repo: store.clone(),
-                deduct_hint_costs: true,
+                hint_deduction_mode: HintDeductionMode::FloorZero,
             }),
             hint_service: Arc::new(HintService {
                 challenge_repo: store.clone(),
                 submission_repo: store.clone(),
                 team_repo: store.clone(),
                 hint_unlock_repo: store.clone(),
+                hint_deduction_mode: HintDeductionMode::FloorZero,
             }),
             jwt_secret: b"secret".to_vec(),
             http_client: reqwest::Client::new(),

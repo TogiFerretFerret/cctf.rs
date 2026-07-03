@@ -14,6 +14,7 @@ use cctf_rs::libs::types::challenges::{
     Challenge, ChallengeAuthor, ChallengeCategory, ChallengeDeployment, ChallengeDescription,
     ChallengePoints, ChallengeTitle, ScoringMode,
 };
+use cctf_rs::libs::types::config::HintDeductionMode;
 use cctf_rs::libs::types::flags::FlagValidator;
 use cctf_rs::libs::types::htmlstring::HtmlString;
 use tokio::sync::Mutex;
@@ -67,13 +68,14 @@ fn build_app(store: Arc<PgStore>) -> Router {
             sort_by_accuracy: false,
             freeze_time: None,
             hint_unlock_repo: store.clone(),
-            deduct_hint_costs: true,
+            hint_deduction_mode: HintDeductionMode::FloorZero,
         }),
         hint_service: Arc::new(HintService {
             challenge_repo: store.clone(),
             submission_repo: store.clone(),
             team_repo: store.clone(),
             hint_unlock_repo: store.clone(),
+            hint_deduction_mode: HintDeductionMode::FloorZero,
         }),
         jwt_secret: SECRET.to_vec(),
         http_client: reqwest::Client::new(),

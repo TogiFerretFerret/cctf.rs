@@ -6,7 +6,7 @@ use std::collections::HashMap;
 pub struct ScoreboardEntry {
     pub team_id: TeamId,
     pub team_name: String,
-    pub points: u32,
+    pub points: i64,
     pub last_solve_time: Option<i64>,
     pub solves: Vec<String>,
     pub rank: u32,

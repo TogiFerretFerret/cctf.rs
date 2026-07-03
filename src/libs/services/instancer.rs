@@ -219,6 +219,7 @@ mod tests {
     use crate::libs::services::solve::{SolveService, calculate_dynamic_points};
     use crate::libs::types::accounts::{Account, AccountId, AccountName};
     use crate::libs::types::challenges::{Challenge, ScoringMode};
+    use crate::libs::types::config::HintDeductionMode;
     use crate::libs::types::flags::FlagValidator;
     use crate::libs::types::solves::{HintUnlock, Submission};
     use crate::libs::types::teams::{Team, TeamId, TeamName};
@@ -545,7 +546,7 @@ mod tests {
             sort_by_accuracy: false,
             freeze_time: None,
             hint_unlock_repo: store.clone(),
-            deduct_hint_costs: true,
+            hint_deduction_mode: HintDeductionMode::FloorZero,
         };
         let board = scoreboard_service.get_scoreboard(None).await.unwrap();
         assert_eq!(board[0].team_name, "Team A");
@@ -557,7 +558,7 @@ mod tests {
             sort_by_accuracy: true,
             freeze_time: None,
             hint_unlock_repo: store.clone(),
-            deduct_hint_costs: true,
+            hint_deduction_mode: HintDeductionMode::FloorZero,
         };
         let board_acc = scoreboard_service_acc.get_scoreboard(None).await.unwrap();
         assert_eq!(board_acc[0].team_name, "Team A");
@@ -661,7 +662,7 @@ mod tests {
             sort_by_accuracy: false,
             freeze_time: None,
             hint_unlock_repo: store.clone(),
-            deduct_hint_costs: true,
+            hint_deduction_mode: HintDeductionMode::FloorZero,
         };
         let board = scoreboard_service.get_scoreboard(None).await.unwrap();
         assert_eq!(board[0].points, 0);

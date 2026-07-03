@@ -53,13 +53,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         sort_by_accuracy: cfg.sort_by_accuracy,
         freeze_time: cfg.freeze_time,
         hint_unlock_repo: store.clone(),
-        deduct_hint_costs: cfg.hints_deduct_score,
+        hint_deduction_mode: cfg.hint_deduction_mode.clone(),
     });
     let hint_service = Arc::new(HintService {
         challenge_repo: store.clone(),
         submission_repo: store.clone(),
         team_repo: store.clone(),
         hint_unlock_repo: store.clone(),
+        hint_deduction_mode: cfg.hint_deduction_mode.clone(),
     });
     let state = AppState {
         auth_service,

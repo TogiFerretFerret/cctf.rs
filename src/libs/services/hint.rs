@@ -1,6 +1,8 @@
 use super::ServiceError;
+use super::scoreboard::{build_challenge_solvers, compute_team_solve_score, total_hint_cost};
 use crate::libs::repos::{ChallengeRepo, HintUnlockRepo, SubmissionRepo, TeamRepo};
 use crate::libs::types::accounts::AccountId;
+use crate::libs::types::config::HintDeductionMode;
 use crate::libs::types::solves::{HintUnlock, HintUnlockId};
 use crate::libs::types::teams::TeamId;
 use std::collections::HashSet;
@@ -25,6 +27,7 @@ where
     pub submission_repo: S,
     pub team_repo: T,
     pub hint_unlock_repo: Arc<dyn HintUnlockRepo>,
+    pub hint_deduction_mode: HintDeductionMode,
 }
 
 impl<C, S, T> HintService<C, S, T>
@@ -94,6 +97,26 @@ where
             .collect::<HashSet<_>>()
             .len() as u32;
         let cost = hint.cost.evaluate(solves, now);
+        if self.hint_deduction_mode == HintDeductionMode::Gate
+            && let Some(ref t) = team_id
+        {
+            let team = self
+                .team_repo
+                .find_by_id(t)
+                .await?
+                .ok_or_else(|| ServiceError::InvalidRequest("ctf-team-not-found".to_string()))?;
+            let challenges = self.challenge_repo.find_all().await?;
+            let solvers = build_challenge_solvers(&all_subs);
+            let solve_points =
+                compute_team_solve_score(&team, &challenges, &all_subs, &solvers).points;
+            let all_unlocks = self.hint_unlock_repo.find_all().await?;
+            let prior_spent = total_hint_cost(&all_unlocks, Some(t), None);
+            if solve_points - prior_spent < cost as i64 {
+                return Err(ServiceError::InvalidRequest(
+                    "ctf-insufficient-points".to_string(),
+                ));
+            }
+        }
         let unlock = HintUnlock {
             id: HintUnlockId(uuid::Uuid::new_v4().to_string()),
             challenge_id: challenge_id.to_string(),

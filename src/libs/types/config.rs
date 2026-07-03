@@ -1,7 +1,18 @@
 use serde::{Deserialize, Serialize};
 
-fn default_true() -> bool {
-    true
+/// How unlocked hint costs affect a team's score.
+///
+/// - `None`: hints are free — unlocking never changes the score.
+/// - `FloorZero`: deduct the cost, but a team's score never drops below zero.
+/// - `AllowNegative`: deduct the cost even if it pushes the score negative.
+/// - `Gate`: deduct the cost, and refuse to unlock a hint a team can't afford.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub enum HintDeductionMode {
+    None,
+    #[default]
+    FloorZero,
+    AllowNegative,
+    Gate,
 }
 
 /// Singleton event configuration: the schedule (start / stop / freeze) plus the
@@ -40,8 +51,8 @@ pub struct CtfConfig {
     pub require_email_verification: bool,
     #[serde(default)]
     pub sort_by_accuracy: bool,
-    #[serde(default = "default_true")]
-    pub hints_deduct_score: bool,
+    #[serde(default)]
+    pub hint_deduction_mode: HintDeductionMode,
 }
 
 impl Default for CtfConfig {
@@ -54,7 +65,7 @@ impl Default for CtfConfig {
             registration_open: true,
             require_email_verification: false,
             sort_by_accuracy: false,
-            hints_deduct_score: true,
+            hint_deduction_mode: HintDeductionMode::FloorZero,
         }
     }
 }
