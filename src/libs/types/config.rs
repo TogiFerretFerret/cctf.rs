@@ -1,5 +1,9 @@
 use serde::{Deserialize, Serialize};
 
+fn default_true() -> bool {
+    true
+}
+
 /// Singleton event configuration: the schedule (start / stop / freeze) plus the
 /// registration and verification toggles. Stored as one JSONB row and read
 /// wherever the platform needs to know "is the CTF live / frozen right now?".
@@ -36,6 +40,8 @@ pub struct CtfConfig {
     pub require_email_verification: bool,
     #[serde(default)]
     pub sort_by_accuracy: bool,
+    #[serde(default = "default_true")]
+    pub hints_deduct_score: bool,
 }
 
 impl Default for CtfConfig {
@@ -48,6 +54,7 @@ impl Default for CtfConfig {
             registration_open: true,
             require_email_verification: false,
             sort_by_accuracy: false,
+            hints_deduct_score: true,
         }
     }
 }

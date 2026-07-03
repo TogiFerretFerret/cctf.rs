@@ -1,6 +1,6 @@
 use super::ServiceError;
 use super::solve::calculate_dynamic_points;
-use crate::libs::repos::{ChallengeRepo, SubmissionRepo, TeamRepo};
+use crate::libs::repos::{ChallengeRepo, SubmissionRepo, TeamRepo, HintUnlockRepo};
 use crate::libs::types::challenges::{Challenge, ScoringMode};
 use crate::libs::types::flags::FlagValidator;
 use crate::libs::types::scoreboard::{
@@ -8,8 +8,8 @@ use crate::libs::types::scoreboard::{
 };
 use crate::libs::types::solves::Submission;
 use crate::libs::types::teams::TeamId;
-use std::collections::HashMap;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 pub struct ScoreboardService<T, C, S>
 where
