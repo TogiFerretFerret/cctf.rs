@@ -786,13 +786,14 @@ pub struct PublicChallenge {
     pub title: ChallengeTitle,
     pub description: ChallengeDescription,
     pub category: ChallengeCategory,
-    pub points: u32,
+    pub points: Option<u32>,
     pub tags: Vec<ChallengeTag>,
     pub files: Vec<ChallengeFile>,
     pub hints: Vec<PublicHint>,
     pub requirements: Vec<ChallengeRequirement>,
     pub connection_info: Option<String>,
     pub solved: bool,
+    pub locked: bool,
 }
 
 #[derive(Deserialize)]
@@ -853,41 +854,76 @@ fn to_public_challenge(
     solve_count: u32,
     solved: bool,
     unlocked: &HashSet<u32>,
+    locked_reveal: Option<&LockedReveal>,
 ) -> PublicChallenge {
-    let connection_info = match &challenge.deployment {
-        ChallengeDeployment::Shared { url } => Some(url.clone()),
-        _ => None,
-    };
     let now = chrono::Utc::now().timestamp();
+    let show = |pick: fn(&LockedReveal) -> bool| locked_reveal.map_or(true, pick);
+    let connection_info = if show(|r| r.connection_info) {
+        match &challenge.deployment {
+            ChallengeDeployment::Shared { url } => Some(url.clone()),
+            _ => None,
+        }
+    } else {
+        None
+    };
     PublicChallenge {
         id: challenge.id.clone(),
         title: challenge.title.clone(),
-        description: challenge.description.clone(),
-        category: challenge.category.clone(),
-        points: current_points(challenge, solve_count),
-        tags: challenge.tags.clone(),
-        files: challenge.files.clone(),
-        hints: challenge
-            .hints
-            .iter()
-            .enumerate()
-            .map(|(i, h)| {
-                let is_unlocked = unlocked.contains(&(i as u32));
-                PublicHint {
-                    cost: h.cost.evaluate(solve_count, now),
-                    unlocked: is_unlocked,
-                    content: if is_unlocked {
-                        Some(h.content.clone())
-                    } else {
-                        None
-                    },
-                }
-            })
-            .collect(),
-        requirements: challenge.requirements.clone(),
-        connection_info,
-        solved,
-    }
+        description: if show(|r| r.description) {
+            challenge.description.clone()
+        } else {
+            ChallengeDescription(HtmlString(String::new()))
+        },
+        category: if show(|r| r.category) {
+            challenge.category.clone()
+        } else {
+            ChallengeCategory(String::new())
+        }, 
+        points: if show(|r| r.points) {
+            Some(current_points(challenge, solve_count))
+        } else {
+            None
+        },
+        tags: if show(|r| r.tags) {
+            challenge.tags.clone()
+        } else {
+            Vec::new()
+        }, 
+        files: if show(|r| r.files) {
+            challenge.files.clone()
+        } else {
+            Vec::new()
+        },
+        hints: if show(|r| r.hints) {
+            challenge
+                .hints
+                .iter()
+                .enumerate()
+                .map(|(i, h)| {
+                    let is_unlocked = unlocked.contains(&(i as u32));
+                    PublicHint {
+                        cost: h.cost.evaluate(solve_count, now),
+                        unlocked: is_unlocked,
+                        content: if is_unlocked {
+                            Some(h.content.clone())
+                        } else {
+                            None
+                        },
+                    }
+                })
+                .collect()
+            } else {
+                Vec::new()
+            },
+            requirements: if show(|r| r.requirements) {
+                challenge.requirements.clone()
+            } else {
+                Vec::new()
+            },
+            connection_info,
+            solved,
+            locked: locked_reveal.is_some(),
+        }
 }
 
 pub async fn list_challenges<A, T, C, S>(
