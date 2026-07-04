@@ -12,7 +12,7 @@ use cctf_rs::libs::services::{
 use cctf_rs::libs::types::accounts::{Account, AccountId, AccountName, AccountRole};
 use cctf_rs::libs::types::challenges::{
     Challenge, ChallengeAuthor, ChallengeCategory, ChallengeDeployment, ChallengeDescription,
-    ChallengePoints, ChallengeTitle, ScoringMode,
+    ChallengePoints, ChallengeTitle, ChallengeVisibility, ScoringMode,
 };
 use cctf_rs::libs::types::config::HintDeductionMode;
 use cctf_rs::libs::types::flags::FlagValidator;
@@ -122,6 +122,7 @@ fn sample_challenge() -> Challenge {
         requirements: Vec::new(),
         team_consensus: false,
         deployment: ChallengeDeployment::None,
+        visibility: ChallengeVisibility::Visible,
     }
 }
 

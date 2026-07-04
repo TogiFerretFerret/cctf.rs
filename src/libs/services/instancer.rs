@@ -490,6 +490,7 @@ mod tests {
             tags: Vec::new(),
             requirements: Vec::new(),
             deployment: crate::libs::types::challenges::ChallengeDeployment::None,
+            visibility: crate::libs::types::challenges::ChallengeVisibility::Visible,
             team_consensus: false,
         };
         ChallengeRepo::save(store.as_ref(), challenge)
@@ -643,6 +644,7 @@ mod tests {
             tags: Vec::new(),
             requirements: Vec::new(),
             deployment: crate::libs::types::challenges::ChallengeDeployment::None,
+            visibility: crate::libs::types::challenges::ChallengeVisibility::Visible,
             team_consensus: true,
         };
         ChallengeRepo::save(store.as_ref(), challenge)
@@ -716,6 +718,7 @@ mod tests {
             tags: Vec::new(),
             requirements: Vec::new(),
             deployment: crate::libs::types::challenges::ChallengeDeployment::None,
+            visibility: crate::libs::types::challenges::ChallengeVisibility::Visible,
             team_consensus: false,
         };
         ChallengeRepo::save(store.as_ref(), partial_challenge)
@@ -781,6 +784,7 @@ mod tests {
             tags: Vec::new(),
             requirements: Vec::new(),
             deployment: crate::libs::types::challenges::ChallengeDeployment::None,
+            visibility: crate::libs::types::challenges::ChallengeVisibility::Visible,
             team_consensus: false,
         };
         ChallengeRepo::save(store.as_ref(), script_challenge)

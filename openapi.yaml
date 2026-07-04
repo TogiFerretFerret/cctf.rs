@@ -464,7 +464,7 @@ components:
         title: { type: string }
         description: { type: string, description: schema-rendered-html }
         category: { type: string }
-        points: { type: integer, description: schema-points-live }
+        points: { type: integer, nullable: true, description: schema-points-live }
         tags:
           type: array
           items: { type: string }
@@ -479,7 +479,8 @@ components:
           items: { $ref: "#/components/schemas/ChallengeRequirement" }
         connection_info: { type: string, nullable: true }
         solved: { type: boolean }
-      required: [id, title, description, category, points, tags, files, hints, requirements, solved]
+        locked: { type: boolean, description: schema-challenge-locked }
+      required: [id, title, description, category, tags, files, hints, requirements, solved, locked]
 
     ScoringMode:
       description: schema-scoring-mode
@@ -604,4 +605,29 @@ components:
           items: { $ref: "#/components/schemas/ChallengeRequirement" }
         team_consensus: { type: boolean }
         deployment: { $ref: "#/components/schemas/ChallengeDeployment" }
+        visibility: { $ref: "#/components/schemas/ChallengeVisibility" }
       required: [id, title, description, category, points, flag, author, hints, files, tags, requirements]
+
+    LockedReveal:
+      type: object
+      description: schema-locked-reveal
+      properties:
+        description: { type: boolean }
+        category: { type: boolean }
+        points: { type: boolean }
+        tags: { type: boolean }
+        files: { type: boolean }
+        hints: { type: boolean }
+        requirements: { type: boolean }
+        connection_info: { type: boolean }
+      required: [description, category, points, tags, files, hints, requirements, connection_info]
+
+    ChallengeVisibility:
+      description: schema-visibility
+      oneOf:
+        - type: string
+          enum: [Visible, Hidden]
+        - type: object
+          properties:
+            Locked: { $ref: "#/components/schemas/LockedReveal" }
+          required: [Locked]
