@@ -64,7 +64,40 @@ where
             .find_by_id(challenge_id)
             .await?
             .ok_or_else(|| ServiceError::InvalidRequest("ctf-challenge-not-found".to_string()))?;
-
+        if let Some(ref limit_cfg) = challenge.max_attempts {
+            let all = if let Some(ref t_id) = team_id {
+                self.submission_repo.find_by_team(t_id).await?
+            } else {
+                self.submission_repo.find_all().await?
+            };
+            let prior: Vec<&Submission> = all
+                .iter()
+                .filter(|s| {
+                    s.challenge_id == challenge_id
+                        && (team_id.is_some() || s.account_id == account_id)
+                    })
+                .collect();
+            let attempts = match limit_cfg.mode {
+                AttemptCountMode::All => prior.len(),
+                AttemptCountMode::IncorrectOnly => prior.iter().filter(|s| !s.is_correct).count(),
+                AttemptCountMode::Unique => prior
+                    .iter()
+                    .map(|s| s.provided_flag.trim())
+                    .collect::<HashSet<_>>()
+                    .len(),
+                AttemptCountMode::UniqueIncorrect => prior
+                    .iter()
+                    .filter(|s| !s.is_correct)
+                    .map(|s| s.provided_flag.trim())
+                    .collect::<HashSet<_>>()
+                    .len(),
+            } as u32;
+            if attempts >= limit_cfg.limit {
+                return Err(ServiceError::InvalidRequest(
+                        "ctf-max-attempts-reached".to_string(),
+                    ));
+            }
+        }
         let active_flag: Option<String> = self
             .challenge_repo
             .find_active_flag(challenge_id, team_id.as_ref(), &account_id)
