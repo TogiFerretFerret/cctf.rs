@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-axum = {version = "0.8.9", features = ["macros"]}
+axum = {version = "0.8.9", features = ["macros", "multipart"]}
 base64 = "0.22.1"
 chrono = "0.4.45"
 fluent-templates = "0.14.0"
