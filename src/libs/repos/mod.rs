@@ -6,7 +6,6 @@ use unic_langid::langid;
 
 pub mod pg;
 pub mod traits;
-pub mod files;
 
 pub use traits::*;
 

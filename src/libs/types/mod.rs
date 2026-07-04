@@ -6,3 +6,4 @@ pub mod htmlstring;
 pub mod scoreboard;
 pub mod solves;
 pub mod teams;
+pub mod files;
