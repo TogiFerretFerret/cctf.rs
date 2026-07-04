@@ -1490,14 +1490,14 @@ where
 mod tests {
     use super::*;
     use crate::libs::repos::{
-        AccountRepo, ChallengeRepo, HintUnlockRepo, InstanceRepo, RepoError, SubmissionRepo,
-        TeamRepo, FileRepo
+        AccountRepo, ChallengeRepo, FileRepo, HintUnlockRepo, InstanceRepo, RepoError,
+        SubmissionRepo, TeamRepo,
     };
     use crate::libs::types::{
-        files::StoredFile,
         accounts::{Account, AccountEmail, AccountName, AccountRole},
         challenges::Challenge,
         config::HintDeductionMode,
+        files::StoredFile,
         solves::{HintUnlock, Submission},
         teams::{Team, TeamName},
     };

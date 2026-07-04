@@ -861,13 +861,13 @@ impl FileRepo for PgStore {
             .fetch_optional(&self.pool)
             .await?;
         Ok(row.map(|r| StoredFile {
-                id: r.get("id"),
-                name: r.get("name"),
-                checksum_sha256: r.get("checksum_sha256"),
-                size: r.get::<i64, _>("size") as u64,
-                content_type: r.get("content_type"),
-                uploaded_at: r.get("uploaded_at"),
-            }))
+            id: r.get("id"),
+            name: r.get("name"),
+            checksum_sha256: r.get("checksum_sha256"),
+            size: r.get::<i64, _>("size") as u64,
+            content_type: r.get("content_type"),
+            uploaded_at: r.get("uploaded_at"),
+        }))
     }
     async fn delete(&self, id: &str) -> Result<(), RepoError> {
         sqlx::query("DELETE FROM files WHERE id = $1")

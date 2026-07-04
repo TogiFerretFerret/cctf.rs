@@ -26,7 +26,7 @@ pub trait FileStorage: Send + Sync {
 }
 
 pub struct LocalFileStorage {
-    pub dir: PathBuf, 
+    pub dir: PathBuf,
 }
 
 impl LocalFileStorage {

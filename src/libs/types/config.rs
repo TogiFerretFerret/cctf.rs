@@ -71,7 +71,7 @@ impl Default for CtfConfig {
             sort_by_accuracy: false,
             hint_deduction_mode: HintDeductionMode::FloorZero,
             upload_dir: "./uploads".to_string(),
-            max_upload_bytes: 25*1024*1024,
+            max_upload_bytes: 25 * 1024 * 1024,
         }
     }
 }
