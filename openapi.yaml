@@ -606,7 +606,24 @@ components:
         team_consensus: { type: boolean }
         deployment: { $ref: "#/components/schemas/ChallengeDeployment" }
         visibility: { $ref: "#/components/schemas/ChallengeVisibility" }
+        max_attempts:
+          oneOf:
+            - { $ref: "#/components/schemas/MaxAttempts" }
+            - { type: "null" }
       required: [id, title, description, category, points, flag, author, hints, files, tags, requirements]
+
+    AttemptCountMode:
+      description: schema-attempt-count-mode
+      type: string
+      enum: [All, Unique, IncorrectOnly, UniqueIncorrect]
+
+    MaxAttempts:
+      type: object
+      description: schema-max-attempts
+      properties:
+        limit: { type: integer }
+        mode: { $ref: "#/components/schemas/AttemptCountMode" }
+      required: [limit]
 
     LockedReveal:
       type: object

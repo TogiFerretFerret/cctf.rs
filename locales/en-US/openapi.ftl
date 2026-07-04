@@ -74,3 +74,5 @@ schema-hint-cost = Externally tagged enum: a "Fixed" object wrapping an integer,
 schema-visibility = Externally tagged enum: the bare string "Visible" or "Hidden", or a "Locked" object wrapping a LockedReveal that controls which fields leak while locked.
 schema-locked-reveal = Per-field toggles controlling exactly what a Locked challenge exposes to non-admins.
 schema-challenge-locked = True when the viewer sees this challenge in its locked (sealed) form; hidden fields are blanked.
+schema-attempt-count-mode = How submissions count toward the attempt limit: All, Unique (dedup identical flags), IncorrectOnly, or UniqueIncorrect.
+schema-max-attempts = Optional per-challenge submission cap with a counting mode.

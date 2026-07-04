@@ -123,6 +123,7 @@ fn sample_challenge() -> Challenge {
         team_consensus: false,
         deployment: ChallengeDeployment::None,
         visibility: ChallengeVisibility::Visible,
+        max_attempts: None,
     }
 }
 
