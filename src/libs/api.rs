@@ -1491,13 +1491,16 @@ mod tests {
     use super::*;
     use crate::libs::repos::{
         AccountRepo, ChallengeRepo, HintUnlockRepo, InstanceRepo, RepoError, SubmissionRepo,
-        TeamRepo,
+        TeamRepo, FileRepo
     };
-    use crate::libs::types::accounts::{Account, AccountEmail, AccountName, AccountRole};
-    use crate::libs::types::challenges::Challenge;
-    use crate::libs::types::config::HintDeductionMode;
-    use crate::libs::types::solves::{HintUnlock, Submission};
-    use crate::libs::types::teams::{Team, TeamName};
+    use crate::libs::types::{
+        files::StoredFile,
+        accounts::{Account, AccountEmail, AccountName, AccountRole},
+        challenges::Challenge,
+        config::HintDeductionMode,
+        solves::{HintUnlock, Submission},
+        teams::{Team, TeamName},
+    };
     use async_trait::async_trait;
     use axum::http::Request;
     use tokio::sync::RwLock;
@@ -1510,6 +1513,7 @@ mod tests {
         challenges: RwLock<HashMap<String, Challenge>>,
         submissions: RwLock<Vec<Submission>>,
         hint_unlocks: RwLock<Vec<HintUnlock>>,
+        files: RwLock<HashMap<String, StoredFile>>,
     }
 
     #[async_trait]
