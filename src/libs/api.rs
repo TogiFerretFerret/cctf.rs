@@ -782,9 +782,9 @@ pub struct PublicHint {
 #[derive(serde::Serialize)]
 pub struct PublicChallenge {
     pub id: String,
-    pub title: String,
-    pub description: String,
-    pub category: String,
+    pub title: ChallengeTitle,
+    pub description: ChallengeDescription,
+    pub category: ChallengeCategory,
     pub points: u32,
     pub tags: Vec<ChallengeTag>,
     pub files: Vec<ChallengeFile>,
@@ -860,9 +860,9 @@ fn to_public_challenge(
     let now = chrono::Utc::now().timestamp();
     PublicChallenge {
         id: challenge.id.clone(),
-        title: challenge.title.0.clone(),
-        description: challenge.description.0.0.clone(),
-        category: challenge.category.0.clone(),
+        title: challenge.title.clone(),
+        description: challenge.description.clone(),
+        category: challenge.category.clone(),
         points: current_points(challenge, solve_count),
         tags: challenge.tags.clone(),
         files: challenge.files.clone(),
