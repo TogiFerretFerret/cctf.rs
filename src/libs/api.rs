@@ -872,7 +872,7 @@ fn to_public_challenge(
     locked_reveal: Option<&LockedReveal>,
 ) -> PublicChallenge {
     let now = chrono::Utc::now().timestamp();
-    let show = |pick: fn(&LockedReveal) -> bool| locked_reveal.map_or(true, pick);
+    let show = |pick: fn(&LockedReveal) -> bool| locked_reveal.is_none_or(pick);
     let connection_info = if show(|r| r.connection_info) {
         match &challenge.deployment {
             ChallengeDeployment::Shared { url } => Some(url.clone()),
