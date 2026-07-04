@@ -120,4 +120,41 @@ pub struct Challenge {
     pub team_consensus: bool,
     #[serde(default)]
     pub deployment: ChallengeDeployment,
+    #[serde(default)]
+    pub visibility: ChallengeVisibility,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct LockedReveal {
+    pub description: bool,
+    pub category: bool,
+    pub points: bool,
+    pub tags: bool,
+    pub files: bool,
+    pub hints: bool,
+    pub requirements: bool,
+    pub connection_info: bool,
+}
+
+impl Default for LockedReveal {
+    fn default() -> Self {
+        Self {
+            description: false,
+            category: true,
+            points: true,
+            tags: true,
+            files: false,
+            hints: false,
+            requirements: true,
+            connection_info: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub enum ChallengeVisibility {
+    #[default]
+    Visible,
+    Hidden,
+    Locked(LockedReveal),
 }

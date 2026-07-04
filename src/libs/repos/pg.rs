@@ -67,6 +67,7 @@ impl PgStore {
                 requirements JSONB NOT NULL DEFAULT '[]', \
                 team_consensus BOOLEAN NOT NULL DEFAULT FALSE, \
                 deployment JSONB NOT NULL DEFAULT '\"None\"' \
+                visibility JSONB NOT NULL DEFAULT '\"Visible\"' \
              );",
         )
         .execute(&self.pool)
@@ -240,6 +241,11 @@ fn map_challenge(row: &sqlx::postgres::PgRow) -> Result<Challenge, sqlx::Error> 
         serde_json::from_value(requirements_val).map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
     let deployment =
         serde_json::from_value(deployment_val).map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
+    let visibility_val: serde_json::Value = row
+        .try_get("visibility")
+        .unwrap_or_else(|_| serde_json::json!("Visible"));
+    let visibility = serde_json::from_value(visibility_val)
+        .unwrap_or(crate::libs::types::challenges::ChallengeVisibility::Visible);
     Ok(Challenge {
         id,
         title: crate::libs::types::challenges::ChallengeTitle(title),
@@ -617,9 +623,11 @@ impl ChallengeRepo for PgStore {
             .map_err(|e| RepoError::Internal(e.to_string()))?;
         let deployment_val = serde_json::to_value(&challenge.deployment)
             .map_err(|e| RepoError::Internal(e.to_string()))?;
+        let visibility_val = serde_json::to_value(&challenge.visibility)
+            .map_err(|e| RepoError::Internal(e.to_string()))?;
         sqlx::query(
-            "INSERT INTO challenges (id, title, description, category, points_mode, points_equation, flag, author_id, author_username, hints, files, tags, requirements, team_consensus, deployment) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)"
+            "INSERT INTO challenges (id, title, description, category, points_mode, points_equation, flag, author_id, author_username, hints, files, tags, requirements, team_consensus, deployment, visibility) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)"
         )
         .bind(&challenge.id)
         .bind(&challenge.title.0)
@@ -636,6 +644,7 @@ impl ChallengeRepo for PgStore {
         .bind(requirements_val)
         .bind(challenge.team_consensus)
         .bind(deployment_val)
+        .bind(visibility_val)
         .execute(&self.pool)
         .await?;
         Ok(())
@@ -667,6 +676,8 @@ impl ChallengeRepo for PgStore {
             .map_err(|e| RepoError::Internal(e.to_string()))?;
         let deployment_val = serde_json::to_value(&challenge.deployment)
             .map_err(|e| RepoError::Internal(e.to_string()))?;
+        let visibility_val = serde_json::to_value(&challenge.visibility)
+            .map_err(|e| RepoError::Internal(e.to_string()))?;
         sqlx::query(
             "UPDATE challenges SET title = $2, description = $3, category = $4, points_mode = $5, points_equation = $6, flag = $7, author_id = $8, author_username = $9, hints = $10, files = $11, tags = $12, requirements = $13, team_consensus = $14, deployment = $15 WHERE id = $1"
         )
@@ -685,6 +696,7 @@ impl ChallengeRepo for PgStore {
         .bind(requirements_val)
         .bind(challenge.team_consensus)
         .bind(deployment_val)
+        .bind(visibility_val)
         .execute(&self.pool)
         .await?;
         Ok(())
