@@ -1103,7 +1103,7 @@ where
     if !is_admin && matches!(challenge.visibility, ChallengeVisibility::Hidden) {
         return LocalizedError {
             status: StatusCode::NOT_FOUND,
-            message: LOCALES.lookup(&lang_id(&lang.0), "ctf-challenge-not-found"), 
+            message: LOCALES.lookup(&lang_id(&lang.0), "ctf-challenge-not-found"),
         }
         .into_response();
     }
@@ -1119,7 +1119,7 @@ where
         solve_count,
         solved,
         &unlocked,
-        locked_reveal
+        locked_reveal,
     ))
     .into_response()
 }
