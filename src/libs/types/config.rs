@@ -53,6 +53,10 @@ pub struct CtfConfig {
     pub sort_by_accuracy: bool,
     #[serde(default)]
     pub hint_deduction_mode: HintDeductionMode,
+    #[serde(default = "default_upload_dir")]
+    pub upload_dir: String,
+    #[serde(default = "default_max_upload_bytes")]
+    pub max_upload_bytes: u64,
 }
 
 impl Default for CtfConfig {
@@ -82,4 +86,12 @@ impl CtfConfig {
     pub fn is_frozen(&self, now: i64) -> bool {
         self.freeze_time.is_some_and(|f| now >= f)
     }
+}
+
+fn default_upload_dir() -> String {
+    "./uploads".to_string()
+}
+
+fn default_max_upload_bytes() -> u64 {
+    25 * 1024 * 1024 // 25 MiB
 }
