@@ -1,16 +1,17 @@
 use crate::libs::repos::{AccountRepo, ChallengeRepo, SubmissionRepo, TeamRepo};
-use crate::libs::services::solve::calculate_dynamic_points;
 use crate::libs::services::{
+    solve::calculate_dynamic_points,
     AuthService, HintService, OAuthService, ScoreboardService, ServiceError, SolveService,
 };
-use crate::libs::types::accounts::{AccountId, AccountRole};
-use crate::libs::types::challenges::{
-    Challenge, ChallengeDeployment, ChallengeFile, ChallengeRequirement, ChallengeTag, ScoringMode,
+use crate::libs::types::{
+    accounts::{AccountId, AccountRole},
+    challenges::{
+        Challenge, ChallengeDeployment, ChallengeFile, ChallengeRequirement, ChallengeTag, ScoringMode,
+    },
+    htmlstring::HtmlString,
+    solves::Submission,
+    teams::TeamId,
 };
-use crate::libs::types::htmlstring::HtmlString;
-use crate::libs::types::solves::Submission;
-use crate::libs::types::teams::TeamId;
-// TODO: concision of imports
 use axum::{
     Json, Router,
     extract::{ConnectInfo, FromRequestParts, Path, Query, Request, State},
@@ -24,9 +25,7 @@ use hmac::{Hmac, KeyInit, Mac};
 use serde::Deserialize;
 use sha2::Sha256;
 use std::borrow::Cow;
-use std::collections::HashMap;
-use std::collections::HashSet;
-// TODO: concision
+use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 use std::sync::Arc;
 
