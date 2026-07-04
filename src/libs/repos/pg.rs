@@ -6,6 +6,7 @@ use crate::libs::types::{
     accounts::{Account, AccountEmail, AccountId, AccountName, AccountRole},
     challenges::{Challenge, ScoringMode},
     config::CtfConfig,
+    files::StoredFile,
     solves::{HintUnlock, Submission},
     teams::{Team, TeamId, TeamName},
 };
@@ -120,6 +121,18 @@ impl PgStore {
                 cost INT NOT NULL, \
                 unlocked_at BIGINT NOT NULL \
              );",
+        )
+        .execute(&self.pool)
+        .await?;
+        sqlx::query(
+        "CREATE TABLE IF NOT EXISTS files ( \
+            id VARCHAR(64) PRIMARY KEY, \
+            name TEXT NOT NULL, \
+            checksum_sha256 VARCHAR(64) NOT NULL, \
+            size BIGINT NOT NULL, \
+            content_type VARCHAR(255) NOT NULL, \
+            uploaded_at BIGINT NOT NULL \
+         );",
         )
         .execute(&self.pool)
         .await?;
@@ -818,6 +831,49 @@ impl HintUnlockRepo for PgStore {
             .bind(&unlock.account_id.0)
             .bind(unlock.cost as i32)
             .bind(unlock.unlocked_at)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl FileRepo for PgStore {
+    async fn save(&self, file: StoredFile) -> Result<(), RepoError> {
+        sqlx::query(
+            "INSERT INTO files (id, name, checksum_sha256, size, content_type, uploaded_at) \
+            VALUES ($1, $2, $3, $4, $5, $6)",
+        )
+        .bind(&file.id)
+        .bind(&file.name)
+        .bind(&file.checksum_sha256)
+        .bind(file.size as i64)
+        .bind(&file.content_type)
+        .bind(file.uploaded_at)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+    async fn find_by_id(&self, id: &str) -> Result<Option<StoredFile>, RepoError> {
+        let row = sqlx::query("SELECT * FROM files WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await?;
+        Ok(match row {
+            Some(r) => Some(StoredFile {
+                id: r.get("id"),
+                name: r.get("name"),
+                checksum_sha256: r.get("checksum_sha256"),
+                size: r.get::<i64, _>("size") as u64,
+                content_type: r.get("content_type"),
+                uploaded_at: r.get("uploaded_at"),
+            }),
+            None => None,
+        })
+    }
+    async fn delete(&self, id: &str) -> Result<(), RepoError> {
+        sqlx::query("DELETE FROM files WHERE id = $1")
+            .bind(id)
             .execute(&self.pool)
             .await?;
         Ok(())
