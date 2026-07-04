@@ -75,7 +75,7 @@ where
                 .filter(|s| {
                     s.challenge_id == challenge_id
                         && (team_id.is_some() || s.account_id == account_id)
-                    })
+                })
                 .collect();
             let attempts = match limit_cfg.mode {
                 AttemptCountMode::All => prior.len(),
@@ -94,8 +94,8 @@ where
             } as u32;
             if attempts >= limit_cfg.limit {
                 return Err(ServiceError::InvalidRequest(
-                        "ctf-max-attempts-reached".to_string(),
-                    ));
+                    "ctf-max-attempts-reached".to_string(),
+                ));
             }
         }
         let active_flag: Option<String> = self
