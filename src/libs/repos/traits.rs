@@ -2,6 +2,7 @@ use super::RepoError;
 use crate::libs::types::{
     accounts::{Account, AccountId, AccountName},
     challenges::Challenge,
+    files::StoredFile,
     config::CtfConfig,
     solves::{HintUnlock, Submission},
     teams::{Team, TeamId, TeamName},
@@ -67,6 +68,12 @@ pub trait HintUnlockRepo: Send + Sync {
     async fn save(&self, unlock: HintUnlock) -> Result<(), RepoError>;
 }
 
+#[async_trait]
+pub trait FileRepo: Send + Sync {
+    async fn save(&self, file: StoredFile) -> Result<(), RepoError>;
+    async fn find_by_id(&self, id: &str) -> Result<Option<StoredFile>, RepoError>;
+    async fn delete(&self, id: &str) -> Result<(), RepoError>;
+}
 #[async_trait]
 pub trait ConfigRepo: Send + Sync {
     async fn get(&self) -> Result<CtfConfig, RepoError>;
@@ -179,6 +186,19 @@ impl<T: HintUnlockRepo + ?Sized> HintUnlockRepo for std::sync::Arc<T> {
     }
     async fn save(&self, unlock: HintUnlock) -> Result<(), RepoError> {
         (**self).save(unlock).await
+    }
+}
+
+#[async_trait]
+impl<T: FileRepo + ?Sized> FileRepo for std::sync::Arc<T> {
+    async fn save(&self, file: StoredFile) -> Result<(), RepoError> {
+        (**self).save(file).await
+    }
+    async fn find_by_id(&self, id: &str) -> Result<Option<StoredFile>, RepoError> {
+        (**self).find_by_id(id).await
+    }
+    async fn delete(&self, id: &str) -> Result<(), RepoError> {
+        (**self).delete(id).await
     }
 }
 
