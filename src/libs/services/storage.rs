@@ -38,4 +38,30 @@ impl LocalFileStorage {
     }
 }
 
-
+#[async_trait]
+impl FileStorage for LocalFileStore {
+    async fn store(&self, id: &str, bytes: &[u8]) -> Result<(), StorageError> {
+        tokio::fs::create_dir_all(&self.dir)
+            .await
+            .map_err(|e| StorageError::Io(e.to_string()))?;
+        tokio::fs::write(self.path(id), bytes)
+            .await
+            .map_err(|e| StorageError::Io(e.to_string()))
+    }
+    async fn retrieve(&self, id: &str) -> Result<Vec<u8>, StorageError> {
+        tokio::fs::read(self.path(id)).await.map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                StorageError::NotFound
+            } else {
+                StorageError::Io(e.to_string())
+            }
+        })
+    }
+    async fn delete(&self, id: &str) -> Result<(), StorageError> {
+        match tokio::fs::remove_file(self.path(id)).await {
+            Ok(()) => Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(e) => Err(StorageError::Io(e.to_string())),
+        }
+    }
+}

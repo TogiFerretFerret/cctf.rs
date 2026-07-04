@@ -81,6 +81,7 @@ pub mod hint;
 pub mod instancer;
 pub mod scoreboard;
 pub mod solve;
+pub mod storage;
 
 pub use auth::{AuthService, OAuthService};
 pub use config::ConfigService;
