@@ -1,10 +1,11 @@
 use super::RepoError;
-use crate::libs::types::accounts::{Account, AccountId, AccountName};
-use crate::libs::types::challenges::Challenge;
-use crate::libs::types::config::CtfConfig;
-use crate::libs::types::solves::{HintUnlock, Submission};
-use crate::libs::types::teams::{Team, TeamId, TeamName};
-// TODO: refactor for concision
+use crate::libs::types::{
+    accounts::{Account, AccountId, AccountName},
+    challenges::Challenge,
+    config::CtfConfig,
+    solves::{HintUnlock, Submission},
+    teams::{Team, TeamId, TeamName},
+};
 use async_trait::async_trait;
 
 #[async_trait]
