@@ -1,12 +1,13 @@
 use crate::libs::repos::{AccountRepo, ChallengeRepo, SubmissionRepo, TeamRepo};
 use crate::libs::services::{
-    solve::calculate_dynamic_points,
     AuthService, HintService, OAuthService, ScoreboardService, ServiceError, SolveService,
+    solve::calculate_dynamic_points,
 };
 use crate::libs::types::{
     accounts::{AccountId, AccountRole},
     challenges::{
-        Challenge, ChallengeCategory, ChallengeDeployment, ChallengeDescription, ChallengeFile, ChallengeRequirement, ChallengeTag, ChallengeTitle, ScoringMode,
+        Challenge, ChallengeCategory, ChallengeDeployment, ChallengeDescription, ChallengeFile,
+        ChallengeRequirement, ChallengeTag, ChallengeTitle, ScoringMode,
     },
     htmlstring::HtmlString,
     solves::Submission,
