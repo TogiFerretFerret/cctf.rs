@@ -878,7 +878,7 @@ fn to_public_challenge(
             challenge.category.clone()
         } else {
             ChallengeCategory(String::new())
-        }, 
+        },
         points: if show(|r| r.points) {
             Some(current_points(challenge, solve_count))
         } else {
@@ -888,7 +888,7 @@ fn to_public_challenge(
             challenge.tags.clone()
         } else {
             Vec::new()
-        }, 
+        },
         files: if show(|r| r.files) {
             challenge.files.clone()
         } else {
@@ -912,18 +912,18 @@ fn to_public_challenge(
                     }
                 })
                 .collect()
-            } else {
-                Vec::new()
-            },
-            requirements: if show(|r| r.requirements) {
-                challenge.requirements.clone()
-            } else {
-                Vec::new()
-            },
-            connection_info,
-            solved,
-            locked: locked_reveal.is_some(),
-        }
+        } else {
+            Vec::new()
+        },
+        requirements: if show(|r| r.requirements) {
+            challenge.requirements.clone()
+        } else {
+            Vec::new()
+        },
+        connection_info,
+        solved,
+        locked: locked_reveal.is_some(),
+    }
 }
 
 pub async fn list_challenges<A, T, C, S>(
@@ -992,7 +992,8 @@ where
         .filter(|ch| is_admin || !matches!(ch.visibility, ChallengeVisibility::Hidden))
         .map(|ch| {
             let solve_count = counts.get(&ch.id).map(|s| s.len()).unwrap_or(0) as u32;
-            let solved = challenge_solved_by(&ch.id, &submissions, viewer_team.as_ref(), &user.account_id);
+            let solved =
+                challenge_solved_by(&ch.id, &submissions, viewer_team.as_ref(), &user.account_id);
             let unlocked = unlocked_map.get(&ch.id).unwrap_or(&empty_unlocks);
             let locked_reveal = if is_admin {
                 None
