@@ -268,6 +268,7 @@ fn map_challenge(row: &sqlx::postgres::PgRow) -> Result<Challenge, sqlx::Error> 
         requirements,
         team_consensus,
         deployment,
+        visibility,
     })
 }
 
