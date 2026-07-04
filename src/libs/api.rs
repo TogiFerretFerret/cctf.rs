@@ -864,6 +864,30 @@ fn challenge_solved_by(
     })
 }
 
+fn viewer_solved_ids(
+    submissions: &[Submission],
+    viewer_team: Option<&TeamId>,
+    viewer_account: &AccountId,
+) -> HashSet<String> {
+    submissions
+        .iter()
+        .filter(|s| {
+            s.is_correct
+                && match viewer_team {
+                    Some(team) => s.team_id.as_ref() == Some(team),
+                    None => &s.account_id == viewer_account,
+                }
+        })
+        .map(|s| s.challenge_id.clone())
+        .collect()
+}
+
+fn requirements_met(challenge: &Challenge, solved: &HashSet<String>) -> bool {
+    challenge.requirements.iter().all(|req| match req {
+        ChallengeRequirement::Solve(id) => solved.contains(id),
+    })
+}
+
 fn to_public_challenge(
     challenge: &Challenge,
     solve_count: u32,
@@ -1002,6 +1026,8 @@ where
     let is_admin = account
         .as_ref()
         .is_some_and(|a| matches!(a.role, AccountRole::Admin));
+    let solved_ids = viewer_solved_ids(&submissions, viewer_team.as_ref(), &user.account_id);
+    let default_reveal = LockedReveal::default();
     let public: Vec<PublicChallenge> = challenges
         .iter()
         .filter(|ch| is_admin || !matches!(ch.visibility, ChallengeVisibility::Hidden))
@@ -1014,6 +1040,8 @@ where
                 None
             } else if let ChallengeVisibility::Locked(r) = &ch.visibility {
                 Some(r)
+            } else if !requirements_met(ch, &solved_ids) {
+                Some(&default_reveal)
             } else {
                 None
             };
@@ -1107,10 +1135,14 @@ where
         }
         .into_response();
     }
+    let solved_ids = viewer_solved_ids(&submissions, viewer_team.as_ref(), &user.account_id);
+    let default_reveal = LockedReveal::default();
     let locked_reveal = if is_admin {
         None
     } else if let ChallengeVisibility::Locked(r) = &challenge.visibility {
         Some(r)
+    } else if !requirements_met(&challenge, &solved_ids) {
+        Some(&default_reveal)
     } else {
         None
     };

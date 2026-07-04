@@ -2,7 +2,7 @@ use super::ServiceError;
 use crate::libs::repos::{ChallengeRepo, SubmissionRepo, TeamRepo};
 use crate::libs::types::{
     accounts::AccountId,
-    challenges::{AttemptCountMode, ScoringMode},
+    challenges::{AttemptCountMode, ChallengeRequirement, ScoringMode},
     flags::FlagValidator,
     solves::{Submission, SubmissionId},
     teams::TeamId,
@@ -95,6 +95,26 @@ where
             if attempts >= limit_cfg.limit {
                 return Err(ServiceError::InvalidRequest(
                     "ctf-max-attempts-reached".to_string(),
+                ));
+            }
+        }
+        if !challenge.requirements.is_empty() {
+            let subs = if let Some(ref t_id) = team_id {
+                self.submission_repo.find_by_team(t_id).await?
+            } else {
+                self.submission_repo.find_all().await?
+            };
+            let solved: HashSet<String> = subs
+                .iter()
+                .filter(|s| s.is_correct && (team_id.is_some() || s.account_id == account_id))
+                .map(|s| s.challenge_id.clone())
+                .collect();
+            let met = challenge.requirements.iter().all(|req| match req {
+                ChallengeRequirement::Solve(id) => solved.contains(id),
+            });
+            if !met {
+                return Err(ServiceError::InvalidRequest(
+                    "ctf-requirements-not-met".to_string(),
                 ));
             }
         }
