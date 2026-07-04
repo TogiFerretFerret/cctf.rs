@@ -122,6 +122,8 @@ pub struct Challenge {
     pub deployment: ChallengeDeployment,
     #[serde(default)]
     pub visibility: ChallengeVisibility,
+    #[serde(default)]
+    pub max_attempts: Option<MaxAttempts>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -157,4 +159,20 @@ pub enum ChallengeVisibility {
     Visible,
     Hidden,
     Locked(LockedReveal),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub enum AttemptCountMode {
+    #[default]
+    All,
+    Unique,
+    IncorrectOnly,
+    UniqueIncorrect,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MaxAttempts {
+    pub limit: u32,
+    #[serde(default)]
+    pub mode: AttemptCountMode,
 }
