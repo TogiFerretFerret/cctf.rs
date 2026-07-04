@@ -2,7 +2,7 @@ use super::ServiceError;
 use crate::libs::repos::{ChallengeRepo, SubmissionRepo, TeamRepo};
 use crate::libs::types::{
     accounts::AccountId,
-    challenges::ScoringMode,
+    challenges::{AttemptCountMode, ScoringMode},
     flags::FlagValidator,
     solves::{Submission, SubmissionId},
     teams::TeamId,
