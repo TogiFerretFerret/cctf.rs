@@ -9,5 +9,3 @@ pub struct StoredFile {
     pub content_type: String,
     pub uploaded_at: i64,
 }
-
-

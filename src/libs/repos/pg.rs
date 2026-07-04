@@ -1,6 +1,7 @@
 use super::RepoError;
 use super::traits::{
-    AccountRepo, ChallengeRepo, ConfigRepo, HintUnlockRepo, InstanceRepo, SubmissionRepo, TeamRepo,
+    AccountRepo, ChallengeRepo, ConfigRepo, FileRepo, HintUnlockRepo, InstanceRepo, SubmissionRepo,
+    TeamRepo,
 };
 use crate::libs::types::{
     accounts::{Account, AccountEmail, AccountId, AccountName, AccountRole},
@@ -125,7 +126,7 @@ impl PgStore {
         .execute(&self.pool)
         .await?;
         sqlx::query(
-        "CREATE TABLE IF NOT EXISTS files ( \
+            "CREATE TABLE IF NOT EXISTS files ( \
             id VARCHAR(64) PRIMARY KEY, \
             name TEXT NOT NULL, \
             checksum_sha256 VARCHAR(64) NOT NULL, \

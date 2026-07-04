@@ -2,8 +2,8 @@ use super::RepoError;
 use crate::libs::types::{
     accounts::{Account, AccountId, AccountName},
     challenges::Challenge,
-    files::StoredFile,
     config::CtfConfig,
+    files::StoredFile,
     solves::{HintUnlock, Submission},
     teams::{Team, TeamId, TeamName},
 };

@@ -1,9 +1,9 @@
 pub mod accounts;
 pub mod challenges;
 pub mod config;
+pub mod files;
 pub mod flags;
 pub mod htmlstring;
 pub mod scoreboard;
 pub mod solves;
 pub mod teams;
-pub mod files;
