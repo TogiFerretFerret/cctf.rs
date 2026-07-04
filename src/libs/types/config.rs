@@ -1,5 +1,9 @@
 use serde::{Deserialize, Serialize};
 
+fn default_max_upload_bytes() -> u64 {
+    25 * 1024 * 1024 // 25 MiB
+}
+
 /// How unlocked hint costs affect a team's score.
 ///
 /// - `None`: hints are free — unlocking never changes the score.
@@ -53,8 +57,8 @@ pub struct CtfConfig {
     pub sort_by_accuracy: bool,
     #[serde(default)]
     pub hint_deduction_mode: HintDeductionMode,
-    #[serde(default = "default_upload_dir")]
-    pub upload_dir: String,
+    #[serde(default)]
+    pub storage: StorageBackend,
     #[serde(default = "default_max_upload_bytes")]
     pub max_upload_bytes: u64,
 }
@@ -70,8 +74,8 @@ impl Default for CtfConfig {
             require_email_verification: false,
             sort_by_accuracy: false,
             hint_deduction_mode: HintDeductionMode::FloorZero,
-            upload_dir: "./uploads".to_string(),
-            max_upload_bytes: 25 * 1024 * 1024,
+            storage: StorageBackend::default(),
+            max_upload_bytes: default_max_upload_bytes(),
         }
     }
 }
@@ -90,10 +94,19 @@ impl CtfConfig {
     }
 }
 
-fn default_upload_dir() -> String {
-    "./uploads".to_string()
+/// Which storage backend serves challenge files. Extend with new variants
+/// (`S3 { .. }`, `GoogleDrive { ... }`, `AzureBlob { ... }`, ...) - each just
+/// needs a matching `FileStorage` impl and a `build_storage` arm
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum StorageBackend {
+    Local { dir: String },
+    Rclone { remote: String, path: String },
 }
 
-fn default_max_upload_bytes() -> u64 {
-    25 * 1024 * 1024 // 25 MiB
+impl Default for StorageBackend {
+    fn default() -> Self {
+        StorageBackend::Local {
+            dir: "./uploads".to_string(),
+        }
+    }
 }

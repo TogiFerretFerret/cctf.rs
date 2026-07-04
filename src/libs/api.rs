@@ -1692,6 +1692,21 @@ mod tests {
             Ok(())
         }
     }
+
+    #[async_trait]
+    impl FileRepo for TestStore {
+        async fn save(&self, file: StoredFile) -> Result<(), RepoError> {
+            self.files.write().await.insert(file.id.clone(), file);
+            Ok(())
+        }
+        async fn find_by_id(&self, id: &str) -> Result<Option<StoredFile>, RepoError> {
+            Ok(self.files.read().await.get(id).cloned())
+        }
+        async fn delete(&self, id: &str) -> Result<(), RepoError> {
+            self.files.write().await.remove(id);
+            Ok(())
+        }
+    }
     #[tokio::test]
     async fn test_api_register_and_login() {
         let _ = tokio_rustls::rustls::crypto::ring::default_provider().install_default();
