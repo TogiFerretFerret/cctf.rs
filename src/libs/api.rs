@@ -6,7 +6,7 @@ use crate::libs::services::{
 use crate::libs::types::{
     accounts::{AccountId, AccountRole},
     challenges::{
-        Challenge, ChallengeDeployment, ChallengeFile, ChallengeRequirement, ChallengeTag, ScoringMode,
+        Challenge, ChallengeCategory, ChallengeDeployment, ChallengeDescription, ChallengeFile, ChallengeRequirement, ChallengeTag, ChallengeTitle, ScoringMode,
     },
     htmlstring::HtmlString,
     solves::Submission,
