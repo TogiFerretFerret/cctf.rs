@@ -976,14 +976,32 @@ where
             .insert(u.hint_index);
     }
     let empty_unlocks: HashSet<u32> = HashSet::new();
+    let account = state
+        .auth_service
+        .account_repo
+        .find_by_id(&user.account_id)
+        .await
+        .ok()
+        .flatten();
+    let viewer_team = account.as_ref().and_then(|a| a.team_id.clone());
+    let is_admin = account
+        .as_ref()
+        .is_some_and(|a| matches!(a.role, AccountRole::Admin));
     let public: Vec<PublicChallenge> = challenges
         .iter()
+        .filter(|ch| is_admin || !matches!(ch.visibility, ChallengeVisibility::Hidden))
         .map(|ch| {
             let solve_count = counts.get(&ch.id).map(|s| s.len()).unwrap_or(0) as u32;
-            let solved =
-                challenge_solved_by(&ch.id, &submissions, viewer_team.as_ref(), &user.account_id);
+            let solved = challenge_solved_by(&ch.id, &submissions, viewer_team.as_ref(), &user.account_id);
             let unlocked = unlocked_map.get(&ch.id).unwrap_or(&empty_unlocks);
-            to_public_challenge(ch, solve_count, solved, unlocked)
+            let locked_reveal = if is_admin {
+                None
+            } else if let ChallengeVisibility::Locked(r) = &ch.visibility {
+                Some(r)
+            } else {
+                None
+            };
+            to_public_challenge(ch, solve_count, solved, unlocked, locked_reveal)
         })
         .collect();
     Json(public).into_response()
