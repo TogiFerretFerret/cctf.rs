@@ -71,3 +71,6 @@ schema-scoring-mode = Externally tagged enum: the bare strings "PointValue" or "
 schema-flag-validator = Externally tagged enum: a "Static", "Regex" or "Script" object each wrapping a string, the bare string "Instanced", or a "Multi" object wrapping an array of PartialFlag.
 schema-deployment = Externally tagged enum: the bare string "None" or "Instanced", or a "Shared" object with a url.
 schema-hint-cost = Externally tagged enum: a "Fixed" object wrapping an integer, or a "Script" object wrapping a rhai expression evaluated with `solves` and `now` in scope.
+schema-visibility = Externally tagged enum: the bare string "Visible" or "Hidden", or a "Locked" object wrapping a LockedReveal that controls which fields leak while locked.
+schema-locked-reveal = Per-field toggles controlling exactly what a Locked challenge exposes to non-admins.
+schema-challenge-locked = True when the viewer sees this challenge in its locked (sealed) form; hidden fields are blanked.

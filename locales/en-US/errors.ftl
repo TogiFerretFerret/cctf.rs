@@ -7,6 +7,7 @@ ctf-challenge-not-found = Challenge not found
 ctf-already-solved = Challenge has already been solved
 ctf-hint-not-found = Hint not found
 ctf-insufficient-points = Not enough points to unlock this hint
+ctf-challenge-locked = This challenge is locked
 ctf-incorrect-flag = Incorrect flag submitted
 ctf-instance-expired-or-not-found = Challenge instance not found or expired
 ctf-rate-limit-exceeded = Rate limit exceeded. Please try again later.
