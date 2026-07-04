@@ -543,6 +543,21 @@ where
             .into_response();
         }
     };
+    let is_admin = matches!(account.role, AccountRole::Admin);
+    if !is_admin
+        && let Ok(Some(c)) = state
+            .solve_service
+            .challenge_repo
+            .find_by_id(&challenge_id)
+            .await
+        && !matches!(c.visibility, ChallengeVisibility::Visible)
+    {
+        return LocalizedError {
+            status: StatusCode::FORBIDDEN,
+            message: LOCALES.lookup(&lang_id(&lang.0), "ctf-challenge-locked"),
+        }
+        .into_response();
+    }
     let team_id = account.team_id.clone();
     let res = state
         .solve_service
@@ -1075,11 +1090,36 @@ where
         .filter(|u| u.challenge_id == challenge_id)
         .map(|u| u.hint_index)
         .collect();
+    let account = state
+        .auth_service
+        .account_repo
+        .find_by_id(&user.account_id)
+        .await
+        .ok()
+        .flatten();
+    let is_admin = account
+        .as_ref()
+        .is_some_and(|a| matches!(a.role, AccountRole::Admin));
+    if !is_admin && matches!(challenge.visibility, ChallengeVisibility::Hidden) {
+        return LocalizedError {
+            status: StatusCode::NOT_FOUND,
+            message: LOCALES.lookup(&lang_id(&lang.0), "ctf-challenge-not-found"), 
+        }
+        .into_response();
+    }
+    let locked_reveal = if is_admin {
+        None
+    } else if let ChallengeVisibility::Locked(r) = &challenge.visibility {
+        Some(r)
+    } else {
+        None
+    };
     Json(to_public_challenge(
         &challenge,
         solve_count,
         solved,
         &unlocked,
+        locked_reveal
     ))
     .into_response()
 }
