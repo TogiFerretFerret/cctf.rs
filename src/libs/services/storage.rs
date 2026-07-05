@@ -22,8 +22,6 @@ impl std::fmt::Display for StorageError {
 
 impl std::error::Error for StorageError {}
 
-/// Reject anything that could escape the storage root or be read as a flag.
-/// Server-minted ids are UUIDs, so this only ever fails on tampering
 fn validate_id(id: &str) -> Result<(), StorageError> {
     if id.is_empty()
         || id.len() > 128
@@ -169,8 +167,6 @@ impl FileStorage for RcloneFileStorage {
 use crate::libs::types::config::StorageBackend;
 use std::sync::Arc;
 
-/// Build the configured storage backend. Add a match arm per new backend
-/// (e.g. a future `RcloneLibStorage` using the librclone crate).
 pub fn build_storage(backend: &StorageBackend) -> Arc<dyn FileStorage> {
     match backend {
         StorageBackend::Local { dir } => Arc::new(LocalFileStorage::new(dir.clone())),
@@ -188,5 +184,99 @@ pub fn build_storage(backend: &StorageBackend) -> Arc<dyn FileStorage> {
                 extra_args: extra,
             })
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_dir() -> PathBuf {
+        std::env::temp_dir().join(format!("cctf-storage-{}", uuid::Uuid::new_v4()))
+    }
+
+    #[test]
+    fn validate_id_accepts_uuids_and_plain_names() {
+        assert!(validate_id("550e8400-e29b-41d4-a716-446655440000").is_ok());
+        assert!(validate_id("file_1.bin").is_ok());
+        assert!(validate_id("AbC.123-x_y").is_ok());
+    }
+
+    #[test]
+    fn validate_id_rejects_traversal_flags_and_separators() {
+        assert!(validate_id("").is_err());
+        assert!(validate_id("../etc/passwd").is_err());
+        assert!(validate_id("a/b").is_err());
+        assert!(validate_id("-rf").is_err());
+        assert!(validate_id("a b").is_err());
+        assert!(validate_id("name;rm").is_err());
+        assert!(validate_id(&"x".repeat(200)).is_err());
+    }
+
+    #[tokio::test]
+    async fn local_store_retrieve_delete_roundtrip() {
+        let dir = temp_dir();
+        let storage = LocalFileStorage::new(&dir);
+        storage.store("abc123", b"hello cctf").await.unwrap();
+        assert_eq!(storage.retrieve("abc123").await.unwrap(), b"hello cctf");
+        storage.delete("abc123").await.unwrap();
+        assert!(matches!(
+            storage.retrieve("abc123").await,
+            Err(StorageError::NotFound)
+        ));
+        let _ = tokio::fs::remove_dir_all(&dir).await;
+    }
+
+    #[tokio::test]
+    async fn local_missing_read_is_not_found_delete_is_ok() {
+        let dir = temp_dir();
+        let storage = LocalFileStorage::new(&dir);
+        assert!(matches!(
+            storage.retrieve("nope").await,
+            Err(StorageError::NotFound)
+        ));
+        assert!(storage.delete("ghost").await.is_ok());
+        let _ = tokio::fs::remove_dir_all(&dir).await;
+    }
+
+    #[tokio::test]
+    async fn local_rejects_unsafe_ids_before_touching_fs() {
+        let storage = LocalFileStorage::new(temp_dir());
+        assert!(matches!(
+            storage.store("../evil", b"x").await,
+            Err(StorageError::InvalidId)
+        ));
+        assert!(matches!(
+            storage.retrieve("a/b").await,
+            Err(StorageError::InvalidId)
+        ));
+    }
+
+    #[tokio::test]
+    #[ignore = "requires rclone + RCLONE_TEST_REMOTE (remote:path); run with --ignored"]
+    async fn rclone_store_retrieve_delete_roundtrip() {
+        let spec = std::env::var("RCLONE_TEST_REMOTE")
+            .expect("set RCLONE_TEST_REMOTE like 'gdedit:cctf-test'");
+        let (remote, path) = spec.split_once(':').expect("expected remote:path");
+        let mut extra = Vec::new();
+        if let Ok(id) = std::env::var("RCLONE_DRIVE_ROOT_FOLDER_ID")
+            && !id.is_empty()
+        {
+            extra.push("--drive-root-folder-id".to_string());
+            extra.push(id);
+        }
+        let storage = RcloneFileStorage {
+            remote: remote.to_string(),
+            path: path.to_string(),
+            extra_args: extra,
+        };
+        let id = format!("test-{}", uuid::Uuid::new_v4());
+        storage.store(&id, b"rclone roundtrip").await.unwrap();
+        assert_eq!(storage.retrieve(&id).await.unwrap(), b"rclone roundtrip");
+        storage.delete(&id).await.unwrap();
+        assert!(matches!(
+            storage.retrieve(&id).await,
+            Err(StorageError::NotFound)
+        ));
     }
 }
