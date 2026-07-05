@@ -9,7 +9,9 @@ use std::sync::Arc;
 impl From<StorageError> for ServiceError {
     fn from(e: StorageError) -> Self {
         match e {
-            StorageError::NotFound => ServiceError::InvalidRequest("ctf-file-not-found".to_string()),
+            StorageError::NotFound => {
+                ServiceError::InvalidRequest("ctf-file-not-found".to_string())
+            }
             StorageError::InvalidId => {
                 ServiceError::InvalidRequest("ctf-file-invalid-id".to_string())
             }
@@ -33,12 +35,18 @@ impl FileService {
         now: i64,
     ) -> Result<ChallengeFile, ServiceError> {
         if bytes.len() as u64 > self.max_bytes {
-            return Err(ServiceError::InvalidRequest("ctf-file-too-large".to_string()));
+            return Err(ServiceError::InvalidRequest(
+                "ctf-file-too-large".to_string(),
+            ));
         }
         let id = uuid::Uuid::new_v4().to_string();
         let mut hasher = Sha256::new();
         hasher.update(bytes);
-        let checksum: String = hasher.finalize().iter().map(|b| format!("{b:02x}")).collect();
+        let checksum: String = hasher
+            .finalize()
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect();
         self.storage.store(&id, bytes).await?;
         let stored = StoredFile {
             id: id.clone(),
