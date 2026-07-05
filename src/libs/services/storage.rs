@@ -80,7 +80,7 @@ impl FileStorage for LocalFileStorage {
         validate_id(id)?;
         match tokio::fs::remove_file(self.dir.join(id)).await {
             Ok(()) => Ok(()),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound =>Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
             Err(e) => Err(StorageError::Io(e.to_string())),
         }
     }
@@ -117,7 +117,8 @@ impl FileStorage for RcloneFileStorage {
             .spawn()
             .map_err(|e| StorageError::Io(e.to_string()))?;
         if let Some(mut stdin) = child.stdin.take() {
-            stdin.write_all(bytes)
+            stdin
+                .write_all(bytes)
                 .await
                 .map_err(|e| StorageError::Io(e.to_string()))?;
             stdin
