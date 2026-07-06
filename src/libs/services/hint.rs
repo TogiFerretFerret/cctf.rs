@@ -3,6 +3,7 @@ use super::scoreboard::{build_challenge_solvers, compute_team_solve_score, total
 use crate::libs::repos::{ChallengeRepo, HintUnlockRepo, SubmissionRepo, TeamRepo};
 use crate::libs::types::{
     accounts::AccountId,
+    challenges::{ChallengeRequirement, ChallengeVisibility},
     config::HintDeductionMode,
     htmlstring::HtmlString,
     solves::{HintUnlock, HintUnlockId},
@@ -66,12 +67,46 @@ where
         team_id: Option<TeamId>,
         account_id: AccountId,
         now: i64,
+        is_admin: bool,
     ) -> Result<HintUnlockResult, ServiceError> {
         let challenge = self
             .challenge_repo
             .find_by_id(challenge_id)
             .await?
             .ok_or_else(|| ServiceError::InvalidRequest("ctf-challenge-not-found".to_string()))?;
+        let all_subs = self.submission_repo.find_all().await?;
+
+        // Authorization: non-admins may only unlock hints on visible challenges
+        // whose prerequisites they've met (mirrors submit_flag / get_challenge).
+        if !is_admin {
+            if challenge.visibility != ChallengeVisibility::Visible {
+                return Err(ServiceError::InvalidRequest(
+                    "ctf-challenge-locked".to_string(),
+                ));
+            }
+            if !challenge.requirements.is_empty() {
+                let solved: HashSet<String> = all_subs
+                    .iter()
+                    .filter(|s| {
+                        s.is_correct
+                            && match team_id.as_ref() {
+                                Some(t) => s.team_id.as_ref() == Some(t),
+                                None => s.team_id.is_none() && s.account_id == account_id,
+                            }
+                    })
+                    .map(|s| s.challenge_id.clone())
+                    .collect();
+                let met = challenge.requirements.iter().all(|req| match req {
+                    ChallengeRequirement::Solve(id) => solved.contains(id),
+                });
+                if !met {
+                    return Err(ServiceError::InvalidRequest(
+                        "ctf-requirements-not-met".to_string(),
+                    ));
+                }
+            }
+        }
+
         let hint = challenge
             .hints
             .get(hint_index as usize)
@@ -87,7 +122,6 @@ where
                 already_unlocked: true,
             });
         }
-        let all_subs = self.submission_repo.find_all().await?;
         let solves = all_subs
             .iter()
             .filter(|s| s.challenge_id == challenge_id && s.is_correct)

@@ -89,11 +89,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         rate_limiter: Arc::new(RateLimiter::new()),
         bracket_acl_scripts: Arc::new(tokio::sync::RwLock::new(api::load_bracket_scripts())),
     };
-    let catcher = HttpCatcher::new(HttpCatcherConfig {
-        secret: std::env::var("INBOUND_EMAIL_SECRET").ok(),
-        ..Default::default()
-    });
-    let app = api::create_router(state).merge(catcher.router());
+    let inbound_secret = std::env::var("INBOUND_EMAIL_SECRET")
+        .ok()
+        .filter(|s| !s.is_empty());
+    let mut app = api::create_router(state);
+    if let Some(secret) = inbound_secret {
+        let catcher = HttpCatcher::new(HttpCatcherConfig {
+            secret: Some(secret),
+            ..Default::default()
+        });
+        app = app.merge(catcher.router());
+    }
     let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
     println!(
         "cctf.rs '{}' listening on http://{}",

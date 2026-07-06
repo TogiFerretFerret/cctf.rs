@@ -694,10 +694,18 @@ where
         }
     };
     let team_id = account.team_id.clone();
+    let is_admin = matches!(account.role, AccountRole::Admin);
     let now = chrono::Utc::now().timestamp();
     let res = state
         .hint_service
-        .unlock_hint(&challenge_id, hint_index, team_id, user.account_id, now)
+        .unlock_hint(
+            &challenge_id,
+            hint_index,
+            team_id,
+            user.account_id,
+            now,
+            is_admin,
+        )
         .await
         .map_localized(&lang.0);
     match res {

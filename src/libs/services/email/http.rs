@@ -85,15 +85,17 @@ async fn inbound_handler(
     headers: HeaderMap,
     body: Bytes,
 ) -> StatusCode {
-    if let Some(expected) = &state.secret {
-        let provided = headers
-            .get(header::AUTHORIZATION)
-            .and_then(|h| h.to_str().ok())
-            .and_then(|h| h.strip_prefix("Bearer "))
-            .unwrap_or("");
-        if !constant_time_eq::constant_time_eq(provided.as_bytes(), expected.as_bytes()) {
-            return StatusCode::UNAUTHORIZED;
-        }
+    // Fail closed: with no configured secret the endpoint is disabled, not open.
+    let Some(expected) = &state.secret else {
+        return StatusCode::UNAUTHORIZED;
+    };
+    let provided = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|h| h.to_str().ok())
+        .and_then(|h| h.strip_prefix("Bearer "))
+        .unwrap_or("");
+    if !constant_time_eq::constant_time_eq(provided.as_bytes(), expected.as_bytes()) {
+        return StatusCode::UNAUTHORIZED;
     }
     let content_type = headers
         .get(header::CONTENT_TYPE)
@@ -129,7 +131,16 @@ async fn inbound_handler(
             .collect();
         parse_email(envelope_from, &rcpts, raw)
     };
-    state.mailbox.lock().await.push(email);
+    // Bounded mailbox: keep only the most recent entries so it can't grow forever.
+    const MAX_MAILBOX: usize = 1000;
+    {
+        let mut mb = state.mailbox.lock().await;
+        mb.push(email);
+        if mb.len() > MAX_MAILBOX {
+            let excess = mb.len() - MAX_MAILBOX;
+            mb.drain(0..excess);
+        }
+    }
     StatusCode::OK
 }
 
