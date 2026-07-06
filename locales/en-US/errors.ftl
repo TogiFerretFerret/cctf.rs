@@ -53,6 +53,7 @@ ctf-bracket-domain-restricted = Your email domain is not permitted to join this 
 ctf-file-too-large = File exceeds the maximum upload size
 ctf-file-not-found = File not found
 ctf-file-invalid-id = Invalid file id
+ctf-file-missing = No file provided in the upload
 
 # Email / SMTP errors
 email-connect-failed = Could not connect to the mail server: {$reason}

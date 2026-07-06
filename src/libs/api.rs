@@ -1,8 +1,7 @@
 use crate::libs::repos::{AccountRepo, ChallengeRepo, SubmissionRepo, TeamRepo};
 use crate::libs::services::{
     AuthService, FileService, HintService, OAuthService, ScoreboardService, ServiceError,
-    SolveService,
-    solve::calculate_dynamic_points,
+    SolveService, solve::calculate_dynamic_points,
 };
 use crate::libs::types::{
     accounts::{AccountId, AccountRole},
@@ -17,7 +16,9 @@ use crate::libs::types::{
 };
 use axum::{
     Json, Router,
-    extract::{ConnectInfo, DefaultBodyLimit, FromRequestParts, Multipart, Path, Query, Request, State},
+    extract::{
+        ConnectInfo, DefaultBodyLimit, FromRequestParts, Multipart, Path, Query, Request, State,
+    },
     http::{HeaderMap, StatusCode, request::Parts},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -587,18 +588,7 @@ where
     S: SubmissionRepo + Send + Sync + 'static,
 {
     let mut uploaded: Option<(String, String, Vec<u8>)> = None;
-    loop {
-        let field = match multipart.next_field().await {
-            Ok(Some(f)) => f,
-            Ok(None) => break,
-            Err(_) => {
-                return LocalizedError {
-                    status: StatusCode::BAD_REQUEST,
-                    message: LOCALES.lookup(&lang_id(&lang.0), "ctf-file-missing"),
-                }
-                .into_response();
-            }
-        };
+    while let Ok(Some(field)) = multipart.next_field().await {
         let name = field
             .file_name()
             .map(|s| s.to_string())
@@ -607,18 +597,9 @@ where
             .content_type()
             .map(|s| s.to_string())
             .unwrap_or_else(|| "application/octet-stream".to_string());
-        match field.bytes().await {
-            Ok(b) => {
-                uploaded = Some((name, content_type, b.to_vec()));
-                break;
-            }
-            Err(_) => {
-                return LocalizedError {
-                    status: StatusCode::BAD_REQUEST,
-                    message: LOCALES.lookup(&lang_id(&lang.0), "ctf-file-missing"),
-                }
-                .into_response();
-            }
+        if let Ok(b) = field.bytes().await {
+            uploaded = Some((name, content_type, b.to_vec()));
+            break;
         }
     }
     let (name, content_type, bytes) = match uploaded {
@@ -655,14 +636,21 @@ where
     C: ChallengeRepo + Send + Sync + 'static,
     S: SubmissionRepo + Send + Sync + 'static,
 {
-    match state.file_service.download(&id).await.map_localized(&lang.0) {
+    match state
+        .file_service
+        .download(&id)
+        .await
+        .map_localized(&lang.0)
+    {
         Ok((meta, bytes)) => {
             let safe_name = meta.name.replace(['"', '\\', '\r', '\n'], "_");
             let mut headers = axum::http::HeaderMap::new();
             if let Ok(ct) = axum::http::HeaderValue::from_str(&meta.content_type) {
                 headers.insert(axum::http::header::CONTENT_TYPE, ct);
             }
-            if let Ok(cd) = axum::http::HeaderValue::from_str(&format!("attachment;filename=\"{safe_name}\"")) {
+            if let Ok(cd) =
+                axum::http::HeaderValue::from_str(&format!("attachment;filename=\"{safe_name}\""))
+            {
                 headers.insert(axum::http::header::CONTENT_DISPOSITION, cd);
             }
             (headers, bytes).into_response()
@@ -1352,6 +1340,8 @@ pub const API_ROUTES: &[(&str, &str)] = &[
     ("DELETE", "/api/v1/challenges/{id}"),
     ("POST", "/api/v1/challenges/{id}/submit"),
     ("POST", "/api/v1/challenges/{id}/hints/{index}/unlock"),
+    ("POST", "/api/v1/files"),
+    ("GET", "/api/v1/files/{id}"),
     ("GET", "/api/v1/scoreboard"),
     ("GET", "/api/v1/scoreboard/export"),
     ("POST", "/api/v1/teams/invite"),

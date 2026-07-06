@@ -27,6 +27,10 @@ op-challenge-delete-desc = Instances are always removed; solves only when delete
 op-submit-summary = Submit a flag
 op-submit-desc = Rate limited to 10 / 60s per IP and per account. Team is derived server-side.
 op-unlock-hint-summary = Unlock a hint
+op-upload-file-summary = Upload a challenge file
+op-upload-file-desc = Admin only. Multipart form-data with a single "file" field; returns a ChallengeFile ready to drop into a challenge's files list.
+op-download-file-summary = Download a file
+op-download-file-desc = Streams the stored file with its original name and content type.
 op-unlock-hint-desc = Unlock hint by index. Charges the evaluated cost once (idempotent); the cost is deducted from the team's score when hint deduction is enabled.
 op-scoreboard-summary = Get standings
 op-scoreboard-export-summary = CTFtime-format scoreboard export
@@ -39,6 +43,7 @@ param-challenge-id-desc = Challenge id
 param-delete-solves-desc = Also delete solve records for this challenge
 param-bracket-desc = Filter standings to a bracket
 param-hint-index-desc = Zero-based hint index
+param-file-id-desc = Stored file id
 
 # Responses
 resp-account-created = Account created
@@ -51,6 +56,8 @@ resp-challenge-updated = Updated challenge
 resp-deleted = Deleted
 resp-submission = Accepted (correct) submission
 resp-hint-unlock = Revealed hint content and the charged cost
+resp-file-uploaded = Stored file, as a ChallengeFile reference
+resp-file-download = The file's bytes (original content type)
 resp-standings = Ranked standings
 resp-ctftime-export = CTFtime export
 resp-invite = Invite token

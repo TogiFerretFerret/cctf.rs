@@ -229,6 +229,50 @@ paths:
         "401": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
 
+  /api/v1/files:
+    post:
+      tags: [challenges]
+      summary: op-upload-file-summary
+      description: op-upload-file-desc
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+              required: [file]
+      responses:
+        "200":
+          description: resp-file-uploaded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ChallengeFile" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+
+  /api/v1/files/{id}:
+    get:
+      tags: [challenges]
+      summary: op-download-file-summary
+      description: op-download-file-desc
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: param-file-id-desc
+          schema: { type: string }
+      responses:
+        "200":
+          description: resp-file-download
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
   /api/v1/scoreboard:
     get:
       tags: [scoreboard]
