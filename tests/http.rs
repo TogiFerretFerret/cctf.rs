@@ -7,7 +7,7 @@ use cctf_rs::libs::api::{AppState, RateLimiter, create_router};
 use cctf_rs::libs::crypto::jwt;
 use cctf_rs::libs::repos::{AccountRepo, SubmissionRepo, pg::PgStore};
 use cctf_rs::libs::services::{
-    AuthService, HintService, OAuthService, ScoreboardService, SolveService,
+    AuthService, FileService, HintService, OAuthService, ScoreboardService, SolveService,
 };
 use cctf_rs::libs::types::accounts::{Account, AccountId, AccountName, AccountRole};
 use cctf_rs::libs::types::challenges::{
@@ -76,6 +76,13 @@ fn build_app(store: Arc<PgStore>) -> Router {
             team_repo: store.clone(),
             hint_unlock_repo: store.clone(),
             hint_deduction_mode: HintDeductionMode::FloorZero,
+        }),
+        file_service: Arc::new(FileService {
+            storage: Arc::new(cctf_rs::libs::services::storage::LocalFileStorage::new(
+                std::env::temp_dir().join("cctf-http-test-files"),
+            )),
+            repo: store.clone(),
+            max_bytes: 25 * 1024 * 1024,
         }),
         jwt_secret: SECRET.to_vec(),
         http_client: reqwest::Client::new(),

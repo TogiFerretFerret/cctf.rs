@@ -1,6 +1,7 @@
 use crate::libs::repos::{AccountRepo, ChallengeRepo, SubmissionRepo, TeamRepo};
 use crate::libs::services::{
-    AuthService, HintService, OAuthService, ScoreboardService, ServiceError, SolveService,
+    AuthService, FileService, HintService, OAuthService, ScoreboardService, ServiceError,
+    SolveService,
     solve::calculate_dynamic_points,
 };
 use crate::libs::types::{
@@ -16,7 +17,7 @@ use crate::libs::types::{
 };
 use axum::{
     Json, Router,
-    extract::{ConnectInfo, FromRequestParts, Path, Query, Request, State},
+    extract::{ConnectInfo, DefaultBodyLimit, FromRequestParts, Multipart, Path, Query, Request, State},
     http::{HeaderMap, StatusCode, request::Parts},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -54,6 +55,7 @@ where
     pub rate_limiter: Arc<RateLimiter>,
     pub bracket_acl_scripts: Arc<tokio::sync::RwLock<HashMap<String, String>>>,
     pub hint_service: Arc<HintService<C, S, T>>,
+    pub file_service: Arc<FileService>,
 }
 
 impl<A, T, C, S> Clone for AppState<A, T, C, S>
@@ -74,6 +76,7 @@ where
             rate_limiter: self.rate_limiter.clone(),
             bracket_acl_scripts: self.bracket_acl_scripts.clone(),
             hint_service: self.hint_service.clone(),
+            file_service: self.file_service.clone(),
         }
     }
 }
@@ -568,6 +571,103 @@ where
     match res {
         Ok(submission) => Json(submission).into_response(),
         Err(err) => err.into_response(),
+    }
+}
+
+pub async fn upload_file<A, T, C, S>(
+    State(state): State<AppState<A, T, C, S>>,
+    _admin: AdminUser,
+    lang: PreferredLang,
+    mut multipart: Multipart,
+) -> axum::response::Response
+where
+    A: AccountRepo + Send + Sync + 'static,
+    T: TeamRepo + Send + Sync + 'static,
+    C: ChallengeRepo + Send + Sync + 'static,
+    S: SubmissionRepo + Send + Sync + 'static,
+{
+    let mut uploaded: Option<(String, String, Vec<u8>)> = None;
+    loop {
+        let field = match multipart.next_field().await {
+            Ok(Some(f)) => f,
+            Ok(None) => break,
+            Err(_) => {
+                return LocalizedError {
+                    status: StatusCode::BAD_REQUEST,
+                    message: LOCALES.lookup(&lang_id(&lang.0), "ctf-file-missing"),
+                }
+                .into_response();
+            }
+        };
+        let name = field
+            .file_name()
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "file".to_string());
+        let content_type = field
+            .content_type()
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "application/octet-stream".to_string());
+        match field.bytes().await {
+            Ok(b) => {
+                uploaded = Some((name, content_type, b.to_vec()));
+                break;
+            }
+            Err(_) => {
+                return LocalizedError {
+                    status: StatusCode::BAD_REQUEST,
+                    message: LOCALES.lookup(&lang_id(&lang.0), "ctf-file-missing"),
+                }
+                .into_response();
+            }
+        }
+    }
+    let (name, content_type, bytes) = match uploaded {
+        Some(v) => v,
+        None => {
+            return LocalizedError {
+                status: StatusCode::BAD_REQUEST,
+                message: LOCALES.lookup(&lang_id(&lang.0), "ctf-file-missing"),
+            }
+            .into_response();
+        }
+    };
+    let now = chrono::Utc::now().timestamp();
+    match state
+        .file_service
+        .upload(&name, &content_type, &bytes, now)
+        .await
+        .map_localized(&lang.0)
+    {
+        Ok(cf) => Json(cf).into_response(),
+        Err(e) => e.into_response(),
+    }
+}
+
+pub async fn download_file<A, T, C, S>(
+    State(state): State<AppState<A, T, C, S>>,
+    _user: AuthenticatedUser,
+    lang: PreferredLang,
+    Path(id): Path<String>,
+) -> axum::response::Response
+where
+    A: AccountRepo + Send + Sync + 'static,
+    T: TeamRepo + Send + Sync + 'static,
+    C: ChallengeRepo + Send + Sync + 'static,
+    S: SubmissionRepo + Send + Sync + 'static,
+{
+    match state.file_service.download(&id).await.map_localized(&lang.0) {
+        Ok((meta, bytes)) => {
+            let safe_name = meta.name.replace(['"', '\\', '\r', '\n'], "_");
+            let mut headers = axum::http::HeaderMap::new();
+            if let Ok(ct) = axum::http::HeaderValue::from_str(&meta.content_type) {
+                headers.insert(axum::http::header::CONTENT_TYPE, ct);
+            }
+            if let Ok(cd) = axum::http::HeaderValue::from_str(&format!("attachment;filename=\"{safe_name}\"")) {
+                headers.insert(axum::http::header::CONTENT_DISPOSITION, cd);
+            }
+            (headers, bytes).into_response()
+        }
+        Err(e) => e.into_response(),
     }
 }
 
@@ -1356,6 +1456,11 @@ where
             "/api/v1/challenges/{id}/hints/{index}/unlock",
             post(unlock_hint::<A, T, C, S>),
         )
+        .route(
+            "/api/v1/files",
+            post(upload_file::<A, T, C, S>).layer(DefaultBodyLimit::max(128 * 1024 * 1024)), // TODO: make this configurable
+        )
+        .route("/api/v1/files/{id}", get(download_file::<A, T, C, S>))
         .route("/api/v1/scoreboard", get(get_scoreboard::<A, T, C, S>))
         .route(
             "/api/v1/scoreboard/export",
@@ -1746,6 +1851,13 @@ mod tests {
                 hint_unlock_repo: store.clone(),
                 hint_deduction_mode: HintDeductionMode::FloorZero,
             }),
+            file_service: Arc::new(FileService {
+                storage: Arc::new(crate::libs::services::storage::LocalFileStorage::new(
+                    std::env::temp_dir().join("cctf-test-files"),
+                )),
+                repo: store.clone(),
+                max_bytes: 25 * 1024 * 1024,
+            }),
             jwt_secret: b"secret".to_vec(),
             http_client: reqwest::Client::new(),
             rate_limiter: Arc::new(RateLimiter::new()),
@@ -1881,6 +1993,13 @@ mod tests {
                 hint_unlock_repo: store.clone(),
                 hint_deduction_mode: HintDeductionMode::FloorZero,
             }),
+            file_service: Arc::new(FileService {
+                storage: Arc::new(crate::libs::services::storage::LocalFileStorage::new(
+                    std::env::temp_dir().join("cctf-test-files"),
+                )),
+                repo: store.clone(),
+                max_bytes: 25 * 1024 * 1024,
+            }),
             jwt_secret: b"secret".to_vec(),
             http_client: reqwest::Client::new(),
             rate_limiter: Arc::new(RateLimiter::new()),
@@ -1967,6 +2086,13 @@ mod tests {
                 team_repo: store.clone(),
                 hint_unlock_repo: store.clone(),
                 hint_deduction_mode: HintDeductionMode::FloorZero,
+            }),
+            file_service: Arc::new(FileService {
+                storage: Arc::new(crate::libs::services::storage::LocalFileStorage::new(
+                    std::env::temp_dir().join("cctf-test-files"),
+                )),
+                repo: store.clone(),
+                max_bytes: 25 * 1024 * 1024,
             }),
             jwt_secret: b"secret".to_vec(),
             http_client: reqwest::Client::new(),

@@ -5,7 +5,8 @@ use cctf_rs::libs::{
     api::{self, AppState, RateLimiter},
     repos::pg::PgStore,
     services::{
-        AuthService, ConfigService, HintService, OAuthService, ScoreboardService, SolveService,
+        AuthService, ConfigService, FileService, HintService, OAuthService, ScoreboardService,
+        SolveService,
         email::{HttpCatcher, HttpCatcherConfig},
     },
 };
@@ -62,12 +63,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         hint_unlock_repo: store.clone(),
         hint_deduction_mode: cfg.hint_deduction_mode.clone(),
     });
+    let storage = match std::env::var("RCLONE_REMOTE") {
+        Ok(remote) if !remote.is_empty() => cctf_rs::libs::services::storage::build_storage(
+            &cctf_rs::libs::types::config::StorageBackend::Rclone {
+                remote,
+                path: std::env::var("RCLONE_PATH").unwrap_or_default(),
+            },
+        ),
+        _ => cctf_rs::libs::services::storage::build_storage(&cfg.storage),
+    };
+    let file_service = Arc::new(FileService {
+        storage,
+        repo: store.clone(),
+        max_bytes: cfg.max_upload_bytes,
+    });
     let state = AppState {
         auth_service,
         oauth_service,
         solve_service,
         scoreboard_service,
         hint_service,
+        file_service,
         jwt_secret,
         http_client: reqwest::Client::new(),
         rate_limiter: Arc::new(RateLimiter::new()),
