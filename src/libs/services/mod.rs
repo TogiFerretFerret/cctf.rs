@@ -82,6 +82,7 @@ pub mod hint;
 pub mod instancer;
 pub mod scoreboard;
 pub mod solve;
+pub mod notifications;
 pub mod storage;
 
 pub use auth::{AuthService, OAuthService};
@@ -90,3 +91,4 @@ pub use files::FileService;
 pub use hint::HintService;
 pub use scoreboard::ScoreboardService;
 pub use solve::SolveService;
+pub use notifications::NotificationService;
