@@ -7,7 +7,7 @@ modularity), so `cctf.rs` is a **headless API/platform**. This tracker covers ba
 capability only — theme/UI/rendering is Astro's job.
 
 Legend: `[x]` done · `[~]` partial · `[ ]` todo · **➕** = already beyond CTFd core
-Last reconciled: 2026-07-02
+Last reconciled: 2026-07-06
 
 ---
 
@@ -50,11 +50,11 @@ Last reconciled: 2026-07-02
 - [x] Categories
 - [x] Tags (modeled)
 - [x] Dynamic-decay challenges
-- [~] Hints (modeled `ChallengeHint{content,cost}`; unlock/deduction not wired)
-- [~] Files / attachments (modeled `ChallengeFile{name,url,checksum}`; no upload/storage)
-- [~] Prerequisites / next-unlock (modeled `Requirement::Solve`; enforcement not wired)
-- [ ] Hidden / visible state
-- [ ] Max attempts (+ enforcement)
+- [x] Hints — unlock endpoint, idempotent charge, 4 deduction modes; `HintCost::{Fixed, Script}` (rhai dynamic cost) ➕
+- [x] Files / attachments — upload/download endpoints, pluggable `FileStorage` (local + rclone → S3/gdrive/etc.), sha256 checksum ➕
+- [x] Prerequisites / next-unlock (`Requirement::Solve`) — enforced on submit, hint unlock, and challenge view
+- [x] Hidden / visible / locked state (`ChallengeVisibility`; `Locked` uses per-field `LockedReveal`) ➕
+- [x] Max attempts (+ enforcement) — `MaxAttempts` with `AttemptCountMode::{All, Unique, IncorrectOnly, UniqueIncorrect}`
 - [ ] Challenge ordering
 - [x] Per-team dynamic instancing + subdomain reverse proxy ➕ (beyond CTFd core)
 - [x] Shared HTTP deployment (`ChallengeDeployment::Shared { url }` — one platform endpoint, no instancer)
@@ -83,7 +83,7 @@ Last reconciled: 2026-07-02
 - [x] Team-consensus solves ➕
 - [x] Rate limiting (IP + account)
 - [x] IP audit logging
-- [ ] Max-attempt enforcement
+- [x] Max-attempt enforcement (see Challenges → Max attempts)
 
 ## Scoreboard
 - [x] Standings / ranks
@@ -123,8 +123,8 @@ Last reconciled: 2026-07-02
 - [ ] Event reset
 
 ## API
-- [x] REST endpoints (auth, teams, scoreboard, challenges, submit) served + integration-tested
-- [ ] **OpenAPI / Swagger spec — NOT compatible yet.** CTFd ships one; needed for a typed Astro client + external tooling. Candidate: `utoipa` annotations on handlers/DTOs.
+- [x] REST endpoints (auth, teams, scoreboard, challenges, submit, hints, files) served + integration-tested
+- [x] OpenAPI spec — hand-written `openapi.yaml`, Fluent-localized at serve time (`/openapi.yaml`, `/openapi.json`, `/docs`), drift-guarded by `tests/openapi.rs` (openapi ≡ `API_ROUTES` ≡ router). Not annotation-generated (no `utoipa`) — a deliberate trade for a curated, localized spec.
 - [ ] API / access tokens (also under Auth)
 
 ## Import / Export / Backup
@@ -144,9 +144,10 @@ Last reconciled: 2026-07-02
 - [x] Hand-rolled alg-confusion-safe HS256 JWT + constant-time verify ➕
 - [x] Trusted-proxy IP handling ➕
 - [x] Fluent i18n from day 1 ➕
+- [ ] **Translation delivery to the Astro frontend** — server-side Fluent localizes API errors + the OpenAPI spec (via `Accept-Language`), but there is no channel for the frontend's own UI strings (nav, buttons, page copy). Decide: expose the Fluent bundles as a per-locale catalog endpoint so backend + frontend share one `locales/` source of truth, vs. Astro-native i18n. Prereq either way: locales beyond `en-US` (only `en-US` exists today).
 - [x] Postgres storage (`PgStore`) + schema init
 - [x] k8s instancer: pod/svc spawn, timed reaping, lifespan renewal ➕
-- [x] lib + bin crate split (0 warnings), doctests + unit tests green
+- [x] lib + bin crate split (0 warnings), doctests + unit tests green; `api/` and `repos/pg/` split into per-domain modules
 - [x] **`main.rs` server bootstrap** — axum serve, `.env`, `AppState`, merged HttpCatcher router, freeze from config
 - [~] Docker deploy
 
@@ -160,8 +161,9 @@ SMTP catcher + Cloudflare HTTP email ingress.
 ## Notes
 - **First blood**: not implemented. Plan = swap the numeric `equation` for rhai-evaluated scoring
   (reuse the sandboxed engine in `flags.rs`), enabling first-blood bonuses + arbitrary curves in one move.
-- **Hints / files**: data models exist; unlock/deduction logic, upload/storage, and endpoints are unbuilt.
+- **Hints / files**: done — hints have an unlock endpoint, idempotent charging, 4 deduction modes, and dynamic rhai cost; files have upload/download endpoints over a pluggable `FileStorage` (local + subprocess rclone → S3/gdrive/etc.) with sha256 checksums.
 - **Freeze**: done — `ScoreboardService.freeze_time` fed from `ConfigService` in `main.rs`.
-- **Frontend**: separate Astro app — everything here is a headless API it consumes.
-- **Tests**: 16 unit + 8 doctests (always run) + Postgres-gated integration in `tests/pg.rs` & `tests/http.rs` (`#[ignore]`, need `TEST_DATABASE_URL` + fresh schema).
-- **OpenAPI**: not implemented — the API is hand-rolled axum with no spec generation. Real gap vs CTFd; blocks a typed frontend client.
+- **Frontend**: separate Astro app — everything here is a headless API it consumes. UI-string translation delivery to it is still unbuilt (see Platform → Translation delivery).
+- **Tests**: 24 unit + 9 doctests (always run) + rclone-gated (`RCLONE_TEST_REMOTE`) and Postgres-gated integration in `tests/pg.rs` & `tests/http.rs` (`#[ignore]`, need `TEST_DATABASE_URL` + fresh schema). Schema DDL is syntax-checked without a DB via `sqlparser`.
+- **OpenAPI**: done — hand-written `openapi.yaml`, Fluent-localized at serve time, drift-guarded against the router + `API_ROUTES`. Deliberately not annotation-generated.
+- **Next**: Notifications (announcements + solve/first-blood broadcast over SSE).
