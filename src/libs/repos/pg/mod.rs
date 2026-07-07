@@ -138,6 +138,7 @@ const SCHEMA_STATEMENTS: &[&str] = &[
 #[cfg(test)]
 mod tests {
     use super::SCHEMA_STATEMENTS;
+    use sqlparser::ast::{DataType, Statement};
     use sqlparser::dialect::PostgreSqlDialect;
     use sqlparser::parser::Parser;
 
@@ -151,12 +152,22 @@ mod tests {
                 "malformed DDL statement:\n{stmt}\nerror: {:?}",
                 parsed.err()
             );
+            let parsed = parsed.unwrap();
             assert_eq!(
-                parsed.as_ref().unwrap().len(),
+                parsed.len(),
                 1,
-                "expected exactly one statement per entry, got {}:\n{stmt}",
-                parsed.unwrap().len()
+                "expected exactly one statement per entry:\n{stmt}",
             );
+            if let Statement::CreateTable(ct) = &parsed[0] {
+                for col in &ct.columns {
+                    assert!(
+                        !matches!(col.data_type, DataType::Custom(..)),
+                        "column `{}` has unrecognized type `{:?}` (likely a missing type/comma typo):\n{stmt}",
+                        col.name,
+                        col.data_type,
+                    );
+                }
+            }
         }
     }
 
