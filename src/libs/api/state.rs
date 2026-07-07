@@ -1,4 +1,5 @@
 use super::*;
+use crate::libs::services::notifications::NotificationService;
 
 pub struct AppState<A, T, C, S>
 where
