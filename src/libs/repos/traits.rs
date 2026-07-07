@@ -4,6 +4,7 @@ use crate::libs::types::{
     challenges::Challenge,
     config::CtfConfig,
     files::StoredFile,
+    notifications::Notification,
     solves::{HintUnlock, Submission},
     teams::{Team, TeamId, TeamName},
 };
@@ -78,6 +79,12 @@ pub trait FileRepo: Send + Sync {
 pub trait ConfigRepo: Send + Sync {
     async fn get(&self) -> Result<CtfConfig, RepoError>;
     async fn set(&self, config: CtfConfig) -> Result<(), RepoError>;
+}
+
+#[async_trait]
+pub trait NotificationRepo: Send + Sync {
+    async fn save(&self, notification: Notification) -> Result<(), RepoError>;
+    async fn list_recent(&self, limit: i64) -> Result<Vec<Notification>, RepoError>;
 }
 
 #[async_trait]
@@ -209,5 +216,15 @@ impl<T: ConfigRepo + ?Sized> ConfigRepo for std::sync::Arc<T> {
     }
     async fn set(&self, config: CtfConfig) -> Result<(), RepoError> {
         (**self).set(config).await
+    }
+}
+
+#[async_trait]
+impl<T: NotificationRepo + ?Sized> NotificationRepo for std::sync::Arc<T> {
+    async fn save(&self, notification: Notification) -> Result<(), RepoError> {
+        (**self).save(notification).await
+    }
+    async fn list_recent(&self, limit: i64) -> Result<Vec<Notification>, RepoError> {
+        (**self).list_recent(limit).await
     }
 }

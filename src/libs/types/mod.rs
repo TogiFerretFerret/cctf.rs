@@ -4,6 +4,7 @@ pub mod config;
 pub mod files;
 pub mod flags;
 pub mod htmlstring;
+pub mod notifications;
 pub mod scoreboard;
 pub mod solves;
 pub mod teams;

@@ -1,13 +1,15 @@
 pub(crate) use crate::libs::repos::RepoError;
 pub(crate) use crate::libs::repos::traits::{
-    AccountRepo, ChallengeRepo, ConfigRepo, FileRepo, HintUnlockRepo, InstanceRepo, SubmissionRepo,
-    TeamRepo,
+    AccountRepo, ChallengeRepo, ConfigRepo, FileRepo, HintUnlockRepo, InstanceRepo,
+    NotificationRepo, SubmissionRepo, TeamRepo,
 };
 pub(crate) use crate::libs::types::{
     accounts::{Account, AccountEmail, AccountId, AccountName, AccountRole},
     challenges::{Challenge, ScoringMode},
     config::CtfConfig,
     files::StoredFile,
+    htmlstring::HtmlString,
+    notifications::{Notification, NotificationId},
     solves::{HintUnlock, Submission},
     teams::{Team, TeamId, TeamName},
 };
@@ -20,6 +22,7 @@ mod config;
 mod files;
 mod hints;
 mod mappers;
+mod notifications;
 mod submissions;
 mod teams;
 
@@ -122,6 +125,14 @@ const SCHEMA_STATEMENTS: &[&str] = &[
         content_type VARCHAR(255) NOT NULL, \
         uploaded_at BIGINT NOT NULL \
      );",
+    "CREATE TABLE IF NOT EXISTS notifications ( \
+        id VARCHAR(64) PRIMARY KEY, \
+        kind JSONB NOT NULL, \
+        title TEXT NOT NULL, \
+        message TEXT NOT NULL, \
+        target JSONB NOT NULL, \
+        created_bigint NOT NULL \
+    );",
 ];
 
 #[cfg(test)]

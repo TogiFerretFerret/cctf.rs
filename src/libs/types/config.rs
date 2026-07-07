@@ -19,6 +19,23 @@ pub enum HintDeductionMode {
     Gate,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct NotificationConfig {
+    pub require_auth: bool,
+    pub broadcast_solves: bool,
+    pub broadcast_first_bloods: bool,
+}
+
+impl Default for NotificationConfig {
+    fn default() -> Self {
+        Self {
+            require_auth: false,
+            broadcast_solves: true,
+            broadcast_first_bloods: true,
+        }
+    }
+}
+
 /// Singleton event configuration: the schedule (start / stop / freeze) plus the
 /// registration and verification toggles. Stored as one JSONB row and read
 /// wherever the platform needs to know "is the CTF live / frozen right now?".
@@ -61,6 +78,8 @@ pub struct CtfConfig {
     pub storage: StorageBackend,
     #[serde(default = "default_max_upload_bytes")]
     pub max_upload_bytes: u64,
+    #[serde(default)]
+    pub notifications: NotificationConfig,
 }
 
 impl Default for CtfConfig {
@@ -76,6 +95,7 @@ impl Default for CtfConfig {
             hint_deduction_mode: HintDeductionMode::FloorZero,
             storage: StorageBackend::default(),
             max_upload_bytes: default_max_upload_bytes(),
+            notifications: NotificationConfig::default(),
         }
     }
 }
