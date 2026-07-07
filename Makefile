@@ -5,7 +5,7 @@
 DATABASE_URL      ?= postgres://cctf:cctf@localhost:5432/cctf
 TEST_DATABASE_URL ?= $(DATABASE_URL)
 
-.PHONY: help build build-server build-docs test test-int check clippy fmt fmt-check run docs-dev db db-reset db-down docker docker-up logs nuke clean
+.PHONY: help build build-server build-docs test test-int test-all check clippy fmt fmt-check run docs-dev db db-reset db-down docker docker-up logs nuke clean
 
 help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -27,6 +27,14 @@ test: ## Unit tests + doctests (no database needed)
 
 test-int: ## Postgres-gated integration tests (needs `make db` + a fresh schema)
 	TEST_DATABASE_URL=$(TEST_DATABASE_URL) cargo test -- --ignored
+
+test-all: ## Full suite: spin up DB, run pg+http integration + unit/doctests, then wipe the DB
+	@set -e; \
+	docker compose up -d --wait db; \
+	trap 'docker compose down -v' EXIT; \
+	TEST_DATABASE_URL=$(TEST_DATABASE_URL) cargo test --test pg -- --ignored; \
+	TEST_DATABASE_URL=$(TEST_DATABASE_URL) cargo test --test http -- --ignored; \
+	cargo test
 
 check: fmt-check clippy ## fmt --check + clippy (warnings = errors)
 
