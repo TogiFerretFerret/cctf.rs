@@ -1,7 +1,7 @@
 pub(crate) use crate::libs::repos::{AccountRepo, ChallengeRepo, SubmissionRepo, TeamRepo};
 pub(crate) use crate::libs::services::{
-    AuthService, FileService, HintService, OAuthService, ScoreboardService, ServiceError,
-    SolveService, solve::calculate_dynamic_points,
+    AuthService, FileService, HintService, NotificationService, OAuthService, ScoreboardService,
+    ServiceError, SolveService, solve::calculate_dynamic_points,
 };
 pub(crate) use crate::libs::types::{
     accounts::{AccountId, AccountRole},
