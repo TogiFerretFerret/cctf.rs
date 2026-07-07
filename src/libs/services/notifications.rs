@@ -17,7 +17,11 @@ pub struct NotificationService {
 impl NotificationService {
     pub fn new(repo: Arc<dyn NotificationRepo>, config: NotificationConfig) -> Self {
         let (sender, _) = broadcast::channel(256);
-        Self { repo, sender, config }
+        Self {
+            repo,
+            sender,
+            config,
+        }
     }
     pub fn subscribe(&self) -> broadcast::Receiver<Notification> {
         self.sender.subscribe()
@@ -48,4 +52,3 @@ impl NotificationService {
         Ok(self.repo.list_recent(limit).await?)
     }
 }
-

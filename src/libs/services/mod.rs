@@ -80,15 +80,15 @@ pub mod email;
 pub mod files;
 pub mod hint;
 pub mod instancer;
+pub mod notifications;
 pub mod scoreboard;
 pub mod solve;
-pub mod notifications;
 pub mod storage;
 
 pub use auth::{AuthService, OAuthService};
 pub use config::ConfigService;
 pub use files::FileService;
 pub use hint::HintService;
+pub use notifications::NotificationService;
 pub use scoreboard::ScoreboardService;
 pub use solve::SolveService;
-pub use notifications::NotificationService;
