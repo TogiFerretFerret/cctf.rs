@@ -17,6 +17,7 @@ where
     pub bracket_acl_scripts: Arc<tokio::sync::RwLock<HashMap<String, String>>>,
     pub hint_service: Arc<HintService<C, S, T>>,
     pub file_service: Arc<FileService>,
+    pub notification_service: Arc<NotificationService>,
 }
 
 impl<A, T, C, S> Clone for AppState<A, T, C, S>
@@ -38,6 +39,7 @@ where
             bracket_acl_scripts: self.bracket_acl_scripts.clone(),
             hint_service: self.hint_service.clone(),
             file_service: self.file_service.clone(),
+            notification_service: self.notification_service.clone(),
         }
     }
 }
