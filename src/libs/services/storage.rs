@@ -90,6 +90,10 @@ pub struct RcloneFileStorage {
     pub extra_args: Vec<String>,
 }
 
+fn rclone_missing(stderr: &str) -> bool {
+    stderr.to_lowercase().contains("not found")
+}
+
 impl RcloneFileStorage {
     fn target(&self, id: &str) -> String {
         if self.path.is_empty() {
@@ -145,14 +149,19 @@ impl FileStorage for RcloneFileStorage {
             .output()
             .await
             .map_err(|e| StorageError::Io(e.to_string()))?;
-        if !out.status.success() {
-            return Err(StorageError::NotFound);
+        if out.status.success() {
+            return Ok(out.stdout);
         }
-        Ok(out.stdout)
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        if rclone_missing(&stderr) {
+            Err(StorageError::NotFound)
+        } else {
+            Err(StorageError::Io(stderr.into_owned()))
+        }
     }
     async fn delete(&self, id: &str) -> Result<(), StorageError> {
         validate_id(id)?;
-        let _ = Command::new("rclone")
+        let out = Command::new("rclone")
             .args(&self.extra_args)
             .arg("deletefile")
             .arg("--")
@@ -160,7 +169,15 @@ impl FileStorage for RcloneFileStorage {
             .output()
             .await
             .map_err(|e| StorageError::Io(e.to_string()))?;
-        Ok(())
+        if out.status.success() {
+            return Ok(());
+        }
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        if rclone_missing(&stderr) {
+            Ok(())
+        } else {
+            Err(StorageError::Io(stderr.into_owned()))
+        }
     }
 }
 
@@ -278,5 +295,21 @@ mod tests {
             storage.retrieve(&id).await,
             Err(StorageError::NotFound)
         ));
+        assert!(storage.delete(&id).await.is_ok());
+        if !path.is_empty() {
+            let rmdir = Command::new("rclone")
+                .args(&storage.extra_args)
+                .arg("rmdir")
+                .arg("--")
+                .arg(format!("{remote}:{path}"))
+                .output()
+                .await
+                .unwrap();
+            assert!(
+                rmdir.status.success(),
+                "rmdir failed: {}",
+                String::from_utf8_lossy(&rmdir.stderr)
+            );
+        }
     }
 }
