@@ -131,7 +131,7 @@ const SCHEMA_STATEMENTS: &[&str] = &[
         title TEXT NOT NULL, \
         message TEXT NOT NULL, \
         target JSONB NOT NULL, \
-        created_bigint NOT NULL \
+        created_at BIGINT NOT NULL \
     );",
 ];
 

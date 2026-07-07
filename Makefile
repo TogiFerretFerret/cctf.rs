@@ -31,7 +31,7 @@ test-int: ## Postgres-gated integration tests (needs `make db` + a fresh schema)
 test-all: ## Full suite: spin up DB, run pg+http integration + unit/doctests, then wipe the DB
 	@set -e; \
 	docker compose up -d --wait db; \
-	trap 'docker compose down -v' EXIT; \
+	trap 'code=$$?; docker compose down -v || true; exit $$code' EXIT; \
 	TEST_DATABASE_URL=$(TEST_DATABASE_URL) cargo test --test pg -- --ignored; \
 	TEST_DATABASE_URL=$(TEST_DATABASE_URL) cargo test --test http -- --ignored; \
 	cargo test
