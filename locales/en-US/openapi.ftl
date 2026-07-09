@@ -10,6 +10,7 @@ tag-auth = Authentication and sessions
 tag-challenges = Challenges
 tag-scoreboard = Scoreboard
 tag-teams = Teams
+tag-notifications = Notifications and announcements
 
 # Operations
 op-register-summary = Register a local account
