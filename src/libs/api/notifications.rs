@@ -1,12 +1,10 @@
 use super::*;
-use crate::libs::types::notifications::{
-    Notification, NotificationId, NotificationKind, NotificationTarget,
-};
+use crate::libs::types::notifications::{Notification, NotificationKind, NotificationTarget};
 use axum::response::sse::{Event, KeepAlive, Sse};
 use tokio_stream::StreamExt;
 use tokio_stream::wrappers::BroadcastStream;
 
-#[derive(Deserialiaze)]
+#[derive(Deserialize)]
 pub struct AnnouncePayload {
     pub title: String,
     pub message: HtmlString,
@@ -21,7 +19,7 @@ fn everyone() -> NotificationTarget {
 fn target_visible(
     target: &NotificationTarget,
     account_id: Option<&AccountId>,
-    team_id: Option<&Teamid>,
+    team_id: Option<&TeamId>,
 ) -> bool {
     match account_id {
         Some(acc) => target.matches(acc, team_id),
@@ -88,6 +86,7 @@ where
         .find_all()
         .await
         .unwrap_or_default();
+    let engine = crate::libs::types::flags::sandboxed_engine();
     let mut matched = Vec::new();
     for account in &accounts {
         let solved: rhai::Array = subs
@@ -96,7 +95,7 @@ where
                 s.is_correct
                     && match &account.team_id {
                         Some(t) => s.team_id.as_ref() == Some(t),
-                        None => s.account_id == account_id,
+                        None => s.account_id == account.id,
                     }
             })
             .map(|s| rhai::Dynamic::from(s.challenge_id.clone()))
