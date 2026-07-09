@@ -158,4 +158,33 @@ where
     }
 }
 
-
+pub async fn list_notifications<A, T, C, S>(
+    State(state): State<AppState<A, T, C, S>>,
+    viewer: OptionalUser,
+    lang: PreferredLang,
+) -> Response
+where
+    A: AccountRepo + Send + Sync + 'static,
+    T: TeamRepo + Send + Sync + 'static,
+    C: ChallengeRepo + Send + Sync + 'static,
+    S: SubmissionRepo + Send + Sync + 'static,
+{
+    if state.notification_service.config.require_auth && viewer.0.is_none() {
+        return LocalizedError {
+            status: StatusCode::UNAUTHORIZED,
+            message: ServiceError::Unauthorized.localize(&lang.0),
+        }
+        .into_response();
+    }
+    let (account_id, team_id) = viewer_identity(&state, viewer.0).await;
+    match state.notification_service.list_recent(100).await.map_localized(&lang.0) {
+        Ok(list) => {
+            let visible: Vec<Notification> = list
+                .into_iter()
+                .filter(|n| target_visible(&n.target, account_id.as_ref(), team_id.as_ref()))
+                .collect();
+            Json(visible).into_response()
+        }
+        Err(e) => e.into_response(),
+    }
+}
