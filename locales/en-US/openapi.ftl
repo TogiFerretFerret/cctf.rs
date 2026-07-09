@@ -37,6 +37,12 @@ op-scoreboard-summary = Get standings
 op-scoreboard-export-summary = CTFtime-format scoreboard export
 op-teams-invite-summary = Mint a team invite token (captain only)
 op-teams-join-summary = Join a team via invite token
+op-notifications-list-summary = List recent notifications
+op-notifications-list-desc = Returns recent notifications visible to the caller. Requires a valid JWT only when notifications.require_auth is set; otherwise open, returning Everyone-targeted notifications.
+op-notifications-stream-summary = Subscribe to the live notification stream (SSE)
+op-notifications-stream-desc = A text/event-stream that pushes notifications targeted at the caller as they happen. Requires a valid JWT only when notifications.require_auth is set.
+op-notification-create-summary = Publish an announcement (admin only)
+op-notification-create-desc = Persists and broadcasts an announcement. A Filter target (a rhai expression over the recipient's solved set) is resolved to concrete accounts at publish time.
 
 # Parameters
 param-code-desc = OAuth authorization code
