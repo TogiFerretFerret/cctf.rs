@@ -77,6 +77,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         repo: store.clone(),
         max_bytes: cfg.max_upload_bytes,
     });
+    let notification_service = Arc::new(NotificationService::new(
+        store.clone(),
+        cfg.notifications.clone(),
+    ));
     let state = AppState {
         auth_service,
         oauth_service,
@@ -88,6 +92,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         http_client: reqwest::Client::new(),
         rate_limiter: Arc::new(RateLimiter::new()),
         bracket_acl_scripts: Arc::new(tokio::sync::RwLock::new(api::load_bracket_scripts())),
+        notification_service,
     };
     let inbound_secret = std::env::var("INBOUND_EMAIL_SECRET")
         .ok()
