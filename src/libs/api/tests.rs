@@ -1,14 +1,15 @@
 use super::teams::{generate_invite_token, verify_invite_token};
 use super::*;
 use crate::libs::repos::{
-    AccountRepo, ChallengeRepo, FileRepo, HintUnlockRepo, InstanceRepo, RepoError, SubmissionRepo,
-    TeamRepo,
+    AccountRepo, ChallengeRepo, FileRepo, HintUnlockRepo, InstanceRepo, NotificationRepo,
+    RepoError, SubmissionRepo, TeamRepo,
 };
 use crate::libs::types::{
     accounts::{Account, AccountEmail, AccountName, AccountRole},
     challenges::Challenge,
     config::HintDeductionMode,
     files::StoredFile,
+    notifications::Notification,
     solves::{HintUnlock, Submission},
     teams::{Team, TeamName},
 };
