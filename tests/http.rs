@@ -7,7 +7,8 @@ use cctf_rs::libs::api::{AppState, RateLimiter, create_router};
 use cctf_rs::libs::crypto::jwt;
 use cctf_rs::libs::repos::{AccountRepo, SubmissionRepo, pg::PgStore};
 use cctf_rs::libs::services::{
-    AuthService, FileService, HintService, OAuthService, ScoreboardService, SolveService,
+    AuthService, FileService, HintService, NotificationService, OAuthService, ScoreboardService,
+    SolveService,
 };
 use cctf_rs::libs::types::accounts::{Account, AccountId, AccountName, AccountRole};
 use cctf_rs::libs::types::challenges::{
