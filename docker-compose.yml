@@ -13,7 +13,11 @@ services:
       timeout: 3s
       retries: 10
     ports:
-      - "5432:5432" # exposed for local psql / debugging; drop in prod
+      # host-loopback only: lets host `cargo run` / `make test-all` reach it,
+      # never publicly reachable (safe to leave on in prod). Drop entirely if
+      # you only ever run the app in-compose.
+      - "127.0.0.1:5432:5432"
+    restart: unless-stopped
 
   app:
     build: .
@@ -22,17 +26,32 @@ services:
         condition: service_healthy # wait until Postgres accepts connections
     environment:
       DATABASE_URL: postgres://cctf:cctf@db:5432/cctf
+      # REQUIRED in prod: put a real value in a `.env` file next to this compose
+      # (compose auto-loads it), e.g. JWT_SECRET=$(openssl rand -hex 32).
       JWT_SECRET: ${JWT_SECRET:-dev-only-change-me-to-a-long-random-value}
-      BIND_ADDR: 0.0.0.0:8080
+      BIND_ADDR: 0.0.0.0:6767
+      # --- file storage (rclone → Google Drive). Comment these out to fall back
+      #     to local disk storage (then add the `uploads` volume below). ---
+      RCLONE_REMOTE: gdedit
+      RCLONE_PATH: cctf-files
+      RCLONE_DRIVE_ROOT_FOLDER_ID: 1ECC2--oMdjl5fI1lBiIv1sjctBEhl7jV
       # --- optional ---
       # CTFTIME_CLIENT_ID:
       # CTFTIME_CLIENT_SECRET:
       # CTFTIME_REDIRECT_URI:
       # INBOUND_EMAIL_SECRET:      # shared secret for the Cloudflare email webhook
       # TRUST_PROXY_HEADERS: "1"   # ONLY when behind a trusted reverse proxy
+    volumes:
+      # rclone's config (holds the gdrive OAuth token). Must exist on the host at
+      # this path; container runs as root so it reads /root/.config/rclone/.
+      - ${HOME}/.config/rclone/rclone.conf:/root/.config/rclone/rclone.conf:ro
+      # --- local-disk storage instead of rclone: uncomment, and comment the
+      #     RCLONE_* env above ---
+      # - uploads:/app/uploads
     ports:
-      - "8080:8080"
+      - "6767:6767"
     restart: unless-stopped
 
 volumes:
   pgdata:
+  # uploads:   # uncomment if using local-disk file storage

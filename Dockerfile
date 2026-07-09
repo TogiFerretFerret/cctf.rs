@@ -36,7 +36,8 @@ FROM debian:bookworm-slim AS runtime
 WORKDIR /app
 
 # ca-certificates for outbound HTTPS (CTFtime OAuth) via rustls-platform-verifier.
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+# rclone for the file-storage backend (the app shells out to it for uploads).
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates rclone \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/target/release/cctf-rs /usr/local/bin/cctf-rs
@@ -46,6 +47,6 @@ COPY --from=builder /app/locales ./locales
 COPY --from=builder /app/openapi.yaml ./openapi.yaml
 COPY --from=docs /build/apidocs/dist ./apidocs/dist
 
-EXPOSE 8080
-ENV BIND_ADDR=0.0.0.0:8080
+EXPOSE 6767
+ENV BIND_ADDR=0.0.0.0:6767
 CMD ["cctf-rs"]
