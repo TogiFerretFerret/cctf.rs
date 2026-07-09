@@ -215,3 +215,26 @@ where
         })
     }
 }
+
+pub struct OptionalUser(pub Option<AccountId>);
+
+impl<A, T, C, S> FromRequestParts<AppState<A, T, C, S>> for OptionalUser
+where
+    A: AccountRepo + Send + Sync + 'static,
+    T: TeamRepo + Send + Sync + 'static,
+    C: ChallengeRepo + Send + Sync + 'static,
+    S: SubmissionRepo + Send + Sync + 'static,
+{
+    type Rejection = std::convert::Infallible;
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState<A, T, C, S>,
+    ) -> Result<Self, Self::Rejection> {
+        Ok(OptionalUser(
+            AuthenticatedUser::from_request_parts(parts, state)
+                .await
+                .ok()
+                .map(|user| user.account_id),
+        ))
+    }
+}
