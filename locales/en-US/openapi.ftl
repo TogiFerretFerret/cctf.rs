@@ -69,6 +69,9 @@ resp-standings = Ranked standings
 resp-ctftime-export = CTFtime export
 resp-invite = Invite token
 resp-joined = Joined
+resp-notification-list = Notifications visible to the caller
+resp-notification-created = The created announcement
+resp-notification-stream = SSE stream of notifications (text/event-stream)
 resp-error = Localized error
 
 # Schema descriptions
