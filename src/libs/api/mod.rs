@@ -149,6 +149,14 @@ where
         )
         .route("/api/v1/teams/invite", post(create_invite::<A, T, C, S>))
         .route("/api/v1/teams/join", post(join_team::<A, T, C, S>))
+        .route(
+            "/api/v1/notifications",
+            get(list_notifications::<A, T, C, S>).post(create_notification::<A, T, C, S>),
+        )
+        .route(
+            "/api/v1/notifications/stream",
+            get(notifications_stream::<A, T, C, S>),
+        )
         .route("/openapi.yaml", get(openapi_yaml))
         .route("/openapi.json", get(openapi_json))
         .route("/docs", get(api_docs))
