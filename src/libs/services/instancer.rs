@@ -281,7 +281,7 @@ mod tests {
                 .insert(account.id.clone(), account);
             Ok(())
         }
-        async fn find_all(&self) -> Result<Vec<Account, RepoError>> {
+        async fn find_all(&self) -> Result<Vec<Account>, RepoError> {
             Ok(self.accounts.read().await.values().cloned().collect())
         }
     }
