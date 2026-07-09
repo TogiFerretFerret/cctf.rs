@@ -34,7 +34,7 @@ async fn setup() -> Arc<PgStore> {
         .expect("connect to TEST_DATABASE_URL");
     let store = Arc::new(PgStore::new(pool.clone()));
     store.init_db().await.expect("init_db");
-    sqlx::query("TRUNCATE accounts, teams, challenges, submissions, challenge_instances, ctf_config CASCADE")
+    sqlx::query("TRUNCATE accounts, teams, challenges, submissions, challenge_instances, ctf_config, notifications CASCADE")
         .execute(&pool)
         .await
         .expect("truncate");
@@ -267,4 +267,92 @@ async fn http_non_admin_cannot_create() {
     )
     .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+#[ignore = "requires Postgres; run: TEST_DATABASE_URL=... cargo test --test http -- --ignored"]
+async fn http_announce_appears_in_list() {
+    let _guard = DB_LOCK.lock().await;
+    let store = setup().await;
+    let app = build_app(store.clone());
+    let admin = make_account(&store, "admin-1", AccountRole::Admin).await;
+    let player = make_account(&store, "player-1", AccountRole::Player).await;
+
+    let body = serde_json::to_vec(&serde_json::json!({
+        "title": "Event starts",
+        "message": "<b>good luck</b>",
+        "target": "Everyone"
+    }))
+    .unwrap();
+    let (status, created) =
+        send(&app, "POST", "/api/v1/notifications", Some(&admin), Some(body)).await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert!(created.contains("Event starts"));
+    assert!(created.contains("\"Announcement\""));
+
+    let (status, list) = send(&app, "GET", "/api/v1/notifications", Some(&player), None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(list.contains("Event starts"), "announcement missing: {list}");
+    assert!(list.contains("good luck"));
+}
+
+#[tokio::test]
+#[ignore = "requires Postgres; run: TEST_DATABASE_URL=... cargo test --test http -- --ignored"]
+async fn http_non_admin_cannot_announce() {
+    let _guard = DB_LOCK.lock().await;
+    let store = setup().await;
+    let app = build_app(store.clone());
+    let player = make_account(&store, "player-1", AccountRole::Player).await;
+
+    let body = serde_json::to_vec(&serde_json::json!({
+        "title": "nope",
+        "message": "x",
+        "target": "Everyone"
+    }))
+    .unwrap();
+    let (status, _) =
+        send(&app, "POST", "/api/v1/notifications", Some(&player), Some(body)).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+#[ignore = "requires Postgres; run: TEST_DATABASE_URL=... cargo test --test http -- --ignored"]
+async fn http_notification_targeting() {
+    let _guard = DB_LOCK.lock().await;
+    let store = setup().await;
+    let app = build_app(store.clone());
+    let admin = make_account(&store, "admin-1", AccountRole::Admin).await;
+    let p1 = make_account(&store, "player-1", AccountRole::Player).await;
+    let p2 = make_account(&store, "player-2", AccountRole::Player).await;
+
+    let targeted = serde_json::to_vec(&serde_json::json!({
+        "title": "secret-for-p1",
+        "message": "hush",
+        "target": { "Accounts": ["player-1"] }
+    }))
+    .unwrap();
+    let (status, _) =
+        send(&app, "POST", "/api/v1/notifications", Some(&admin), Some(targeted)).await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let broadcast = serde_json::to_vec(&serde_json::json!({
+        "title": "for-everyone",
+        "message": "hi all",
+        "target": "Everyone"
+    }))
+    .unwrap();
+    let (status, _) =
+        send(&app, "POST", "/api/v1/notifications", Some(&admin), Some(broadcast)).await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let (_, list1) = send(&app, "GET", "/api/v1/notifications", Some(&p1), None).await;
+    assert!(list1.contains("secret-for-p1"), "p1 should see targeted: {list1}");
+    assert!(list1.contains("for-everyone"));
+
+    let (_, list2) = send(&app, "GET", "/api/v1/notifications", Some(&p2), None).await;
+    assert!(
+        !list2.contains("secret-for-p1"),
+        "p2 must NOT see targeted: {list2}"
+    );
+    assert!(list2.contains("for-everyone"));
 }

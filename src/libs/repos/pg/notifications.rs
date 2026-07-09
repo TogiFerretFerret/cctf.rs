@@ -3,7 +3,7 @@ use super::*;
 #[async_trait]
 impl NotificationRepo for PgStore {
     async fn save(&self, notification: Notification) -> Result<(), RepoError> {
-        sqlx::query("INSERT INTO notifications (id, kind, title, message, target, created_at) VALUES ($1, $2, $3, $4, $5, $6")
+        sqlx::query("INSERT INTO notifications (id, kind, title, message, target, created_at) VALUES ($1, $2, $3, $4, $5, $6)")
             .bind(&notification.id.0)
             .bind(serde_json::to_value(&notification.kind).map_err(|e| RepoError::Internal(e.to_string()))?)
             .bind(&notification.title)
