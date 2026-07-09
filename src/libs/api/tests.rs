@@ -282,6 +282,7 @@ async fn test_api_register_and_login() {
         http_client: reqwest::Client::new(),
         rate_limiter: Arc::new(RateLimiter::new()),
         bracket_acl_scripts: Arc::new(tokio::sync::RwLock::new(load_bracket_scripts())),
+        notification_service: Arc::new(NotificationService::new(store.clone(), Default::default())),
     };
     let app = create_router(state);
     let response = app
@@ -424,6 +425,7 @@ async fn test_collegiate_bracket_acl() {
         http_client: reqwest::Client::new(),
         rate_limiter: Arc::new(RateLimiter::new()),
         bracket_acl_scripts: Arc::new(tokio::sync::RwLock::new(load_bracket_scripts())),
+        notification_service: Arc::new(NotificationService::new(store.clone(), Default::default())),
     };
 
     let app = create_router(state);
@@ -517,6 +519,7 @@ fn build_test_app() -> Router {
         http_client: reqwest::Client::new(),
         rate_limiter: Arc::new(RateLimiter::new()),
         bracket_acl_scripts: Arc::new(tokio::sync::RwLock::new(load_bracket_scripts())),
+        notification_service: Arc::new(NotificationService::new(store.clone(), Default::default())),
     };
     create_router(state)
 }
