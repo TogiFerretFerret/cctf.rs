@@ -102,6 +102,9 @@ pub const API_ROUTES: &[(&str, &str)] = &[
     ("GET", "/api/v1/scoreboard/export"),
     ("POST", "/api/v1/teams/invite"),
     ("POST", "/api/v1/teams/join"),
+    ("GET", "/api/v1/notifications"),
+    ("POST", "/api/v1/notifications"),
+    ("GET", "/api/v1/notifications/stream"),
 ];
 
 pub fn create_router<A, T, C, S>(state: AppState<A, T, C, S>) -> Router
