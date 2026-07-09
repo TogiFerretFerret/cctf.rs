@@ -89,6 +89,7 @@ fn build_app(store: Arc<PgStore>) -> Router {
         http_client: reqwest::Client::new(),
         rate_limiter: Arc::new(RateLimiter::new()),
         bracket_acl_scripts: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
+        notification_service: Arc::new(NotificationService::new(store.clone(), Default::default())),
     };
     create_router(state)
 }
