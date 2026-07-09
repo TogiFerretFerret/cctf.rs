@@ -5,8 +5,8 @@ use cctf_rs::libs::{
     api::{self, AppState, RateLimiter},
     repos::pg::PgStore,
     services::{
-        AuthService, ConfigService, FileService, HintService, OAuthService, ScoreboardService,
-        SolveService,
+        AuthService, ConfigService, FileService, HintService, NotificationService, OAuthService,
+        ScoreboardService, SolveService,
         email::{HttpCatcher, HttpCatcherConfig},
     },
 };
