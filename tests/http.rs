@@ -284,15 +284,24 @@ async fn http_announce_appears_in_list() {
         "target": "Everyone"
     }))
     .unwrap();
-    let (status, created) =
-        send(&app, "POST", "/api/v1/notifications", Some(&admin), Some(body)).await;
+    let (status, created) = send(
+        &app,
+        "POST",
+        "/api/v1/notifications",
+        Some(&admin),
+        Some(body),
+    )
+    .await;
     assert_eq!(status, StatusCode::CREATED);
     assert!(created.contains("Event starts"));
     assert!(created.contains("\"Announcement\""));
 
     let (status, list) = send(&app, "GET", "/api/v1/notifications", Some(&player), None).await;
     assert_eq!(status, StatusCode::OK);
-    assert!(list.contains("Event starts"), "announcement missing: {list}");
+    assert!(
+        list.contains("Event starts"),
+        "announcement missing: {list}"
+    );
     assert!(list.contains("good luck"));
 }
 
@@ -310,8 +319,14 @@ async fn http_non_admin_cannot_announce() {
         "target": "Everyone"
     }))
     .unwrap();
-    let (status, _) =
-        send(&app, "POST", "/api/v1/notifications", Some(&player), Some(body)).await;
+    let (status, _) = send(
+        &app,
+        "POST",
+        "/api/v1/notifications",
+        Some(&player),
+        Some(body),
+    )
+    .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
 }
 
@@ -331,8 +346,14 @@ async fn http_notification_targeting() {
         "target": { "Accounts": ["player-1"] }
     }))
     .unwrap();
-    let (status, _) =
-        send(&app, "POST", "/api/v1/notifications", Some(&admin), Some(targeted)).await;
+    let (status, _) = send(
+        &app,
+        "POST",
+        "/api/v1/notifications",
+        Some(&admin),
+        Some(targeted),
+    )
+    .await;
     assert_eq!(status, StatusCode::CREATED);
 
     let broadcast = serde_json::to_vec(&serde_json::json!({
@@ -341,12 +362,21 @@ async fn http_notification_targeting() {
         "target": "Everyone"
     }))
     .unwrap();
-    let (status, _) =
-        send(&app, "POST", "/api/v1/notifications", Some(&admin), Some(broadcast)).await;
+    let (status, _) = send(
+        &app,
+        "POST",
+        "/api/v1/notifications",
+        Some(&admin),
+        Some(broadcast),
+    )
+    .await;
     assert_eq!(status, StatusCode::CREATED);
 
     let (_, list1) = send(&app, "GET", "/api/v1/notifications", Some(&p1), None).await;
-    assert!(list1.contains("secret-for-p1"), "p1 should see targeted: {list1}");
+    assert!(
+        list1.contains("secret-for-p1"),
+        "p1 should see targeted: {list1}"
+    );
     assert!(list1.contains("for-everyone"));
 
     let (_, list2) = send(&app, "GET", "/api/v1/notifications", Some(&p2), None).await;

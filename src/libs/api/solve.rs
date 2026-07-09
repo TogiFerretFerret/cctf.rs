@@ -92,7 +92,9 @@ where
 }
 
 fn escape_html(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
 
 async fn maybe_broadcast_solve<A, T, C, S>(state: &AppState<A, T, C, S>, submission: &Submission)
