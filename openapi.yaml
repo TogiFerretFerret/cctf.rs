@@ -17,6 +17,8 @@ tags:
     description: tag-scoreboard
   - name: teams
     description: tag-teams
+  - name: notifications
+    description: tag-notifications
 
 security:
   - bearerAuth: []
@@ -342,6 +344,53 @@ paths:
         "400": { $ref: "#/components/responses/Error" }
         "403": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
+
+  /api/v1/notifications:
+    get:
+      tags: [notifications]
+      summary: op-notifications-list-summary
+      description: op-notifications-list-desc
+      security: []
+      responses:
+        "200":
+          description: resp-notification-list
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Notification" }
+        "401": { $ref: "#/components/responses/Error" }
+    post:
+      tags: [notifications]
+      summary: op-notification-create-summary
+      description: op-notification-create-desc
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AnnouncePayload" }
+      responses:
+        "201":
+          description: resp-notification-created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Notification" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+
+  /api/v1/notifications/stream:
+    get:
+      tags: [notifications]
+      summary: op-notifications-stream-summary
+      description: op-notifications-stream-desc
+      security: []
+      responses:
+        "200":
+          description: resp-notification-stream
+          content:
+            text/event-stream:
+              schema: { type: string }
+        "401": { $ref: "#/components/responses/Error" }
 
 components:
   securitySchemes:
