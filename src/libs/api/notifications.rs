@@ -1,5 +1,7 @@
 use super::*;
-use crate::libs::types::notifications::{Notification, NotificationId, NotificationKind, NotificationTarget};
+use crate::libs::types::notifications::{
+    Notification, NotificationId, NotificationKind, NotificationTarget,
+};
 use axum::response::sse::{Event, KeepAlive, Sse};
 use tokio_stream::StreamExt;
 use tokio_stream::wrappers::BroadcastStream;
@@ -64,7 +66,7 @@ where
 async fn resolve_target<A, T, C, S>(
     state: &AppState<A, T, C, S>,
     target: NotificationTarget,
-) -> NotificationTarget 
+) -> NotificationTarget
 where
     A: AccountRepo + Send + Sync + 'static,
     T: TeamRepo + Send + Sync + 'static,
@@ -74,17 +76,28 @@ where
     let NotificationTarget::Filter(expr) = target else {
         return target;
     };
-    let accounts = state.auth_service.account_repo.find_all().await.unwrap_or_default();
-    let subs = state.solve_service.submission_repo.find_all().await.unwrap_or_default();
+    let accounts = state
+        .auth_service
+        .account_repo
+        .find_all()
+        .await
+        .unwrap_or_default();
+    let subs = state
+        .solve_service
+        .submission_repo
+        .find_all()
+        .await
+        .unwrap_or_default();
     let mut matched = Vec::new();
     for account in &accounts {
         let solved: rhai::Array = subs
             .iter()
             .filter(|s| {
-                s.is_correct && match &account.team_id {
-                    Some(t) => s.team_id.as_ref() == Some(t),
-                    None => s.account_id == account_id,
-                }
+                s.is_correct
+                    && match &account.team_id {
+                        Some(t) => s.team_id.as_ref() == Some(t),
+                        None => s.account_id == account_id,
+                    }
             })
             .map(|s| rhai::Dynamic::from(s.challenge_id.clone()))
             .collect();
@@ -93,9 +106,16 @@ where
         scope.push("username", account.username.0.clone());
         scope.push(
             "email",
-            account.email.as_ref().map(|e| e.0.clone()).unwrap_or_default(),
+            account
+                .email
+                .as_ref()
+                .map(|e| e.0.clone())
+                .unwrap_or_default(),
         );
-        if engine.eval_with_scope::<bool>(&mut scope, &expr).unwrap_or(false) {
+        if engine
+            .eval_with_scope::<bool>(&mut scope, &expr)
+            .unwrap_or(false)
+        {
             matched.push(account.id.clone());
         }
     }
@@ -127,10 +147,15 @@ where
         if !target_visible(&n.target, account_id.as_ref(), team_id.as_ref()) {
             return None;
         }
-        let event = Event::default().event(kind_event(&n.kind)).json_data(&n).ok()?;
+        let event = Event::default()
+            .event(kind_event(&n.kind))
+            .json_data(&n)
+            .ok()?;
         Some(Ok::<Event, std::convert::Infallible>(event))
     });
-    Sse::new(stream).keep_alive(KeepAlive::default()).into_response()
+    Sse::new(stream)
+        .keep_alive(KeepAlive::default())
+        .into_response()
 }
 
 pub async fn create_notification<A, T, C, S>(
@@ -177,7 +202,12 @@ where
         .into_response();
     }
     let (account_id, team_id) = viewer_identity(&state, viewer.0).await;
-    match state.notification_service.list_recent(100).await.map_localized(&lang.0) {
+    match state
+        .notification_service
+        .list_recent(100)
+        .await
+        .map_localized(&lang.0)
+    {
         Ok(list) => {
             let visible: Vec<Notification> = list
                 .into_iter()

@@ -38,12 +38,14 @@ mod challenges;
 mod extract;
 mod files;
 mod hints;
+mod notifications;
 mod openapi;
 mod proxy;
 mod scoreboard;
 mod solve;
 mod state;
 mod teams;
+
 #[cfg(test)]
 mod tests;
 
