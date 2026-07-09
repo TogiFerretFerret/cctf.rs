@@ -741,3 +741,38 @@ components:
           properties:
             Locked: { $ref: "#/components/schemas/LockedReveal" }
           required: [Locked]
+    NotificationKind:
+      type: string
+      enum: [Announcement, Solve, FirstBlood]
+    NotificationTarget:
+      description: schema-notification-target
+      oneOf:
+        - type: string
+          enum: [Everyone]
+        - type: object
+          properties: { Teams: { type: array, items: { type: string } } }
+          required: [Teams]
+        - type: object
+          properties: { Accounts: { type: array, items: { type: string } } }
+          required: [Accounts]
+        - type: object
+          properties: { Filter: { type: string } }
+          required: [Filter]
+    Notification:
+      type: object
+      properties:
+        id: { type: string }
+        kind: { $ref: "#/components/schemas/NotificationKind" }
+        title: { type: string }
+        message: { type: string, description: schema-rendered-html }
+        target: { $ref: "#/components/schemas/NotificationTarget" }
+        created_at: { type: integer, format: int64 }
+      required: [id, kind, title, message, target, created_at]
+    AnnouncePayload:
+      description: schema-announce-payload
+      type: object
+      properties:
+        title: { type: string }
+        message: { type: string, description: schema-rendered-html }
+        target: { $ref: "#/components/schemas/NotificationTarget" }
+      required: [title, message]
