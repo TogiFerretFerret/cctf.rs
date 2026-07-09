@@ -26,6 +26,7 @@ struct TestStore {
     submissions: RwLock<Vec<Submission>>,
     hint_unlocks: RwLock<Vec<HintUnlock>>,
     files: RwLock<HashMap<String, StoredFile>>,
+    notifications: RwLock<Vec<Notification>>,
 }
 
 #[async_trait]
@@ -216,6 +217,21 @@ impl FileRepo for TestStore {
         Ok(())
     }
 }
+
+#[async_trait]
+impl NotificationRepo for TestStore {
+    async fn save(&self, notification: Notification) -> Result<(), RepoError> {
+        self.notifications.write().await.push(notification);
+        Ok(())
+    }
+    async fn list_recent(&self, limit: i64) -> Result<Vec<Notification>, RepoError> {
+        let mut all: Vec<Notification> = self.notifications.read().await.clone();
+        all.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        all.truncate(limit.max(0) as usize);
+        Ok(all)
+    }
+}
+
 #[tokio::test]
 async fn test_api_register_and_login() {
     let _ = tokio_rustls::rustls::crypto::ring::default_provider().install_default();
