@@ -93,3 +93,5 @@ schema-locked-reveal = Per-field toggles controlling exactly what a Locked chall
 schema-challenge-locked = True when the viewer sees this challenge in its locked (sealed) form; hidden fields are blanked.
 schema-attempt-count-mode = How submissions count toward the attempt limit: All, Unique (dedup identical flags), IncorrectOnly, or UniqueIncorrect.
 schema-max-attempts = Optional per-challenge submission cap with a counting mode.
+schema-notification-target = Externally tagged enum: the bare string "Everyone", a "Teams"/"Accounts" object wrapping an array of ids, or a "Filter" object wrapping a rhai expression evaluated with `solved`, `username` and `email` in scope. A Filter is resolved to concrete accounts when the notification is published.
+schema-announce-payload = Admin announcement body. message is rendered HTML; target defaults to Everyone.
