@@ -57,6 +57,7 @@ use self::auth::*;
 use self::challenges::*;
 use self::files::*;
 use self::hints::*;
+use self::notifications::*;
 use self::openapi::*;
 use self::proxy::*;
 use self::scoreboard::*;
