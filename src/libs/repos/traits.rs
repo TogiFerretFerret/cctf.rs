@@ -17,6 +17,7 @@ pub trait AccountRepo: Send + Sync {
     async fn find_by_ctftime_id(&self, ctftime_id: u32) -> Result<Option<Account>, RepoError>;
     async fn save(&self, account: Account) -> Result<(), RepoError>;
     async fn update(&self, account: Account) -> Result<(), RepoError>;
+    async fn find_all(&self) -> Result<Vec<Account>, RepoError>;
 }
 
 #[async_trait]
@@ -103,6 +104,9 @@ impl<T: AccountRepo + ?Sized> AccountRepo for std::sync::Arc<T> {
     }
     async fn update(&self, account: Account) -> Result<(), RepoError> {
         (**self).update(account).await
+    }
+    async fn find_all(&self) -> Result<Vec<Account>, RepoError> {
+        (**self).find_all().await
     }
 }
 

@@ -85,4 +85,14 @@ impl AccountRepo for PgStore {
 
         Ok(())
     }
+    async fn find_all(&self) -> Result<Vec<Account>, RepoError> {
+        let rows = sqlx::query("SELECT * FROM accounts")
+            .fetch_all(&self.pool)
+            .await?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(map_account(&r)?);
+        }
+        Ok(out)
+    }
 }
